@@ -1,0 +1,30 @@
+- name: Configure Flannel on worker nodes
+  hosts: all
+  remote_user: ubuntu
+  become: true
+  vars:
+    flannel_network: "10.244.0.0/16"
+    flannel_mtu: 1450
+    flannel_ipmasq: true
+  tasks:
+    - name: Create /run/flannel directory
+      file:
+        path: /run/flannel
+        state: directory
+        mode: '0755'
+
+    - name: Set flannel_subnet per host
+      set_fact:
+        flannel_subnet: "{{ '10.244.2.1/24' if ansible_host == '192.168.0.113' else '10.244.1.1/24' }}"
+
+    - name: Create Flannel subnet.env file
+      copy:
+        dest: /run/flannel/subnet.env
+        content: |
+          FLANNEL_NETWORK={{ flannel_network }}
+          FLANNEL_SUBNET={{ flannel_subnet }}
+          FLANNEL_MTU={{ flannel_mtu }}
+          FLANNEL_IPMASQ={{ flannel_ipmasq }}
+        owner: root
+        group: root
+        mode: '0644'
