@@ -1,0 +1,18 @@
+- name: Run Longhorn CLI preflight
+  hosts: homelab
+  gather_facts: yes
+  remote_user: ubuntu
+#  become: yes
+  tasks:
+
+    - name: Run longhornctl preflight check
+      shell: longhornctl install preflight --kubeconfig=/home/ubuntu/.kube/config
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      register: preflight_result
+      failed_when: preflight_result.rc != 0
+
+    - name: Show preflight output
+      debug:
+        msg: "{{ preflight_result.stdout_lines }}"
+

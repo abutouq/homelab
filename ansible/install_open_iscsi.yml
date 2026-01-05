@@ -1,0 +1,10 @@
+- name: Install open-iscsi on target servers
+  hosts: homelab
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: Ensure open-iscsi is installed
+      ansible.builtin.apt:
+        name: open-iscsi
+        state: present
+        update_cache: yes

@@ -1,0 +1,10 @@
+- name: Install cryptsetup on target servers
+  hosts: homelab
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: Ensure cryptsetup is installed
+      ansible.builtin.apt:
+        name: cryptsetup
+        state: present
+        update_cache: yes

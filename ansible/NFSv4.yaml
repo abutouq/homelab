@@ -1,0 +1,28 @@
+- name: Check NFS kernel support
+  hosts: homelab
+  remote_user: ubuntu
+  gather_facts: yes
+  tasks:
+
+    - name: Check if NFSv4 support is enabled
+      shell: "cat /boot/config-$(uname -r) | grep CONFIG_NFS_V4"
+      register: nfs_v4
+      ignore_errors: yes
+
+    - name: Check if NFSv4.1 support is enabled
+      shell: "cat /boot/config-$(uname -r) | grep CONFIG_NFS_V4_1"
+      register: nfs_v4_1
+      ignore_errors: yes
+
+    - name: Check if NFSv4.2 support is enabled
+      shell: "cat /boot/config-$(uname -r) | grep CONFIG_NFS_V4_2"
+      register: nfs_v4_2
+      ignore_errors: yes
+
+    - name: Display NFS support results
+      debug:
+        msg:
+          - "NFSv4: {{ nfs_v4.stdout | default('Not enabled') }}"
+          - "NFSv4.1: {{ nfs_v4_1.stdout | default('Not enabled') }}"
+          - "NFSv4.2: {{ nfs_v4_2.stdout | default('Not enabled') }}"
+

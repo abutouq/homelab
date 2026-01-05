@@ -1,0 +1,46 @@
+- name: Install Longhorn CLI
+  hosts: homelab
+  remote_user: ubuntu
+  gather_facts: yes
+  become: yes
+  vars:
+    longhorn_version: "v1.10.1"
+    longhorn_bin_dir: "/usr/local/bin"
+
+  tasks:
+
+    - name: Determine architecture
+      set_fact:
+        arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
+
+    - name: Download longhornctl binary
+      get_url:
+        url: "https://github.com/longhorn/cli/releases/download/{{ longhorn_version }}/longhornctl-linux-{{ arch }}"
+        dest: "/tmp/longhornctl-linux-{{ arch }}"
+        mode: '0755'
+
+    - name: Download checksum file
+      get_url:
+        url: "https://github.com/longhorn/cli/releases/download/{{ longhorn_version }}/longhornctl-linux-{{ arch }}.sha256"
+        dest: "/tmp/longhornctl-linux-{{ arch }}.sha256"
+
+    - name: Verify checksum
+      shell: |
+        sha256sum -c <(awk '{print $1 " /tmp/longhornctl-linux-{{ arch }}"}' /tmp/longhornctl-linux-{{ arch }}.sha256)
+      args:
+        executable: /bin/bash
+      register: checksum_result
+      failed_when: checksum_result.rc != 0
+
+    - name: Install longhornctl using install command
+      command: install -m 0755 /tmp/longhornctl-linux-{{ arch }} {{ longhorn_bin_dir }}/longhornctl
+
+
+    - name: Verify longhornctl installation
+      command: longhornctl version
+      register: longhornctl_version
+
+    - name: Display Longhorn CLI version
+      debug:
+        msg: "{{ longhornctl_version.stdout }}"
+
