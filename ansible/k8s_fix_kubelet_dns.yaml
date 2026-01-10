@@ -1,0 +1,28 @@
+- name: Fix kubelet DNS resolution
+  hosts: all
+  become: true
+  remote_user: ubuntu
+  tasks:
+    - name: Ensure systemd-resolve directory exists
+      file:
+        path: /run/systemd/resolve
+        state: directory
+        mode: '0755'
+
+    - name: Link active resolv.conf for kubelet
+      file:
+        src: /etc/resolv.conf
+        dest: /run/systemd/resolve/resolv.conf
+        state: link
+        force: true
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart kubelet
+      systemd:
+        name: kubelet
+        state: restarted
