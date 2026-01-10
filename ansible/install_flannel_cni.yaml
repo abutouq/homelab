@@ -1,0 +1,80 @@
+- name: Install Flannel CNI plugin (amd64)
+  hosts: new
+  become: true
+  remote_user: ubuntu
+  vars:
+    cni_bin_dir: /opt/cni/bin
+    flannel_version: v1.6.0
+    flannel_archive: cni-plugin-flannel-linux-amd64-v1.6.0-flannel1.tgz
+    flannel_url: "https://github.com/flannel-io/cni-plugin/releases/download/v1.6.0-flannel1/cni-plugin-flannel-linux-amd64-v1.6.0-flannel1.tgz"
+    cni_plugins_version: v1.6.2
+    cni_plugins_url: "https://github.com/containernetworking/plugins/releases/download/{{ cni_plugins_version }}/cni-plugins-linux-amd64-{{ cni_plugins_version }}.tgz"
+
+  tasks:
+    - name: Ensure CNI bin directory exists
+      file:
+        path: "{{ cni_bin_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download Flannel CNI plugin archive
+      get_url:
+        url: "{{ flannel_url }}"
+        dest: "{{ cni_bin_dir }}/{{ flannel_archive }}"
+        mode: "0644"
+      register: flannel_download
+
+    - name: Extract Flannel CNI plugin
+      unarchive:
+        src: "{{ cni_bin_dir }}/{{ flannel_archive }}"
+        dest: "{{ cni_bin_dir }}"
+        remote_src: true
+      when: flannel_download.changed
+
+    - name: Rename flannel binary
+      copy:
+        src: "{{ cni_bin_dir }}/flannel-amd64"
+        dest: "{{ cni_bin_dir }}/flannel"
+        mode: "0755"
+        remote_src: true
+
+    - name: Remove Flannel archive
+      file:
+        path: "{{ cni_bin_dir }}/{{ flannel_archive }}"
+        state: absent
+
+    - name: Verify flannel architecture
+      command: file {{ cni_bin_dir }}/flannel
+      register: flannel_file
+      changed_when: false
+
+    - name: Show flannel architecture
+      debug:
+        msg: "{{ flannel_file.stdout }}"
+
+    - name: Install standard CNI plugins (loopback, bridge, etc.)
+      unarchive:
+        src: "{{ cni_plugins_url }}"
+        dest: "{{ cni_bin_dir }}"
+        remote_src: true
+
+    - name: Verify loopback architecture
+      command: file {{ cni_bin_dir }}/loopback
+      register: loopback_file
+      changed_when: false
+
+    - name: Show loopback architecture
+      debug:
+        msg: "{{ loopback_file.stdout }}"
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: true
+
+    - name: Restart kubelet
+      systemd:
+        name: kubelet
+        state: restarted
+        enabled: true
