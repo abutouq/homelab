@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Node
+metadata:
+  labels:
+    node.kubernetes.io/environment: "staging"
+    node.kubernetes.io/owner: "homelab"
+  name: worker-04
+spec:
+  podCIDR: 10.244.4.0/24
+  podCIDRs:
+  - 10.244.4.0/24
