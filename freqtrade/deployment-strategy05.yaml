@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freqtrade
+  namespace: freqtrade
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: freqtrade
+  template:
+    metadata:
+      labels:
+        app: freqtrade
+    spec:
+      containers:
+        - name: freqtrade
+          image: aabutouq/freqtrade:homelab
+          ports:
+            - name: api
+              containerPort: 8080
+              protocol: TCP
+          args:
+            - trade
+            - --db-url
+            - sqlite:////freqtrade/user_data/data/Strategy005_SandidEdition_Optimized-prod-01.sqlite
+            - --config 
+            - /freqtrade/config/config.json
+            - --strategy 
+            - Strategy005_Optimized
+          env:
+            - name: FREQTRADE__EXCHANGE__KEY
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_EXCHANGE_KEY
+
+            - name: FREQTRADE__EXCHANGE__SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_EXCHANGE_SECRET
+
+            # Telegram Settings
+            - name: FREQTRADE__TELEGRAM__TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_TELEGRAM_TOKEN
+
+            - name: FREQTRADE__TELEGRAM__CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_TELEGRAM_CHAT_ID
+
+            # API Server Settings (for the Web UI)
+            - name: FREQTRADE__API_SERVER__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_API_USER
+
+            - name: FREQTRADE__API_SERVER__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_API_PASSWORD
+
+            - name: FREQTRADE__API_SERVER__JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_API_JWT
+
+            - name: FREQTRADE__API_SERVER__WS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: freqtrade-secrets
+                  key: FT_API_WS
+          volumeMounts:
+            - name: data
+              mountPath: /freqtrade/user_data/data
+            - name: config
+              mountPath: /freqtrade/config
+              readOnly: true
+      imagePullSecrets:
+        - name: aabutouq-registry-secret
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: freqtrade-data
+        - name: config
+          configMap:
+            name: freqtrade-config
+            optional: false
