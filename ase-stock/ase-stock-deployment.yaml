@@ -13,6 +13,8 @@ spec:
       labels:
         app: ase-stock-api
     spec:
+      nodeSelector:
+        node.kubernetes.io/environment: "production"
       containers:
       - name: ase-stock-api
         image: aabutouq/ase-stock-api:latest
