@@ -66,3 +66,20 @@ Installs the Longhorn CLI (longhornctl) on the nodes or control host.
 Runs Longhorn preflight validation to ensure all nodes meet the requirements.
 
 > ansible-playbook -i inventory.ini ansible/longhornctl_preflight.yaml
+
+
+## What This Cluster Runs
+- NGINX Ingress Controller
+- Longhorn for persistent storage
+- Grafana + Prometheus
+
+## Future Failure Scenarios Roadmap
+- Node shutdown and pod rescheduling
+- Broken deployment rollout and rollback
+- PVC reattachment after pod deletion
+
+## Key Design Decisions
+- Why Flannel
+- Why Longhorn
+- Why Ingress instead of LoadBalancer
+The LoadBalancer Service operates at Layer 4 (TCP/UDP), while the Ingress Controller works at Layer 7. By using NGINX Ingress, we can support host-based and path-based routing, as well as TLS termination
