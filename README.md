@@ -66,7 +66,7 @@ Installs the Longhorn CLI (longhornctl) on the nodes or control host.
 Runs Longhorn preflight validation to ensure all nodes meet the requirements.
 
 > ansible-playbook -i inventory.ini ansible/longhornctl_preflight.yaml
-
+</ol>
 
 ## What This Cluster Runs
 - NGINX Ingress Controller
