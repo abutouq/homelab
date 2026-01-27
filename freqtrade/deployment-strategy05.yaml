@@ -29,6 +29,9 @@ spec:
             - --strategy 
             - Strategy005_Optimized
           env:
+            - name: FREQTRADE__DRY_RUN
+              value: "true"
+              
             - name: FREQTRADE__EXCHANGE__KEY
               valueFrom:
                 secretKeyRef:
@@ -84,6 +87,9 @@ spec:
             - name: config
               mountPath: /freqtrade/config
               readOnly: true
+          resources:
+            requests:
+              cpu: "1000m"
       imagePullSecrets:
         - name: aabutouq-registry-secret
       volumes:
