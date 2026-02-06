@@ -14,6 +14,8 @@ spec:
       labels:
         app: mysql
     spec:
+      nodeSelector:
+        node.kubernetes.io/environment: "production"
       containers:
       - name: mysql
         image: mysql:8.0
