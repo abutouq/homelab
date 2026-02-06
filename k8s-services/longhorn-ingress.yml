@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: longhorn-ingress
+  namespace: longhorn-system
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - longhorn.homebytes.space
+    secretName: longhorn-tls-secret
+  rules:
+  - host: longhorn.homebytes.space
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: longhorn-frontend
+            port:
+              number: 80
