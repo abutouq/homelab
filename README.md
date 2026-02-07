@@ -74,11 +74,46 @@ Runs Longhorn preflight validation to ensure all nodes meet the requirements.
 - Grafana + Prometheus
 
 ## Failure Scenarios
-- Failure Scenario – Broken Ingress
+### Scenario 1: Failure Scenario – Broken Ingress
 
-    I intentionally misconfigured the Ingress to point to a non-existing Service.
-    NGINX returned 503 Service Temporarily Unavailable, and kubectl describe ingress clearly showed that the backend Service was not found.
-    This confirmed that Ingress routing, TLS, and the controller itself were working correctly, and the issue was isolated to the Service layer.
+I intentionally misconfigured the Ingress to point to a non-existing Service.
+NGINX returned `503 Service Temporarily Unavailable`, and kubectl describe ingress clearly showed that the backend Service was not found.
+This confirmed that Ingress routing, TLS, and the controller itself were working correctly, and the issue was isolated to the Service layer.
+
+### Scenario 2: Node Shutdown and Pod Rescheduling
+
+#### Objective
+Validate how Kubernetes behaves when a node hosting a StatefulSet pod is abruptly
+shut down.
+
+#### Test Steps
+1. Identify the node running the StatefulSet pod:
+   `kubectl get pod mysql-0 -o wide`
+
+2. Shut down the node without draining it (simulate a real crash):
+   `sudo shutdown -h now`
+
+3. Observe node and pod state:
+
+   `kubectl get nodes`
+
+   `kubectl get pod mysql-0 -o wide -w`
+
+#### Observed Behavior
+- Node transitions to `NotReady`
+- Pod initially remains in Running state
+- After the eviction timeout, the pod enters Terminating state
+- No new pod is created automatically
+
+#### Explanation
+StatefulSets preserve pod identity and prevent duplicate pods with the same ordinal.
+Kubernetes waits for the node to recover before rescheduling to avoid data corruption.
+
+#### Key Takeaway
+Node shutdown does not immediately trigger pod recreation for StatefulSets.
+Manual intervention is required if the node is permanently unavailable.
+
+
 
 ## Future Failure Scenarios Roadmap
 - Node shutdown and pod rescheduling
