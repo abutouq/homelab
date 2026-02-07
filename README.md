@@ -80,6 +80,8 @@ I intentionally misconfigured the Ingress to point to a non-existing Service.
 NGINX returned `503 Service Temporarily Unavailable`, and kubectl describe ingress clearly showed that the backend Service was not found.
 This confirmed that Ingress routing, TLS, and the controller itself were working correctly, and the issue was isolated to the Service layer.
 
+---
+
 ### Scenario 2: Node Shutdown and Pod Rescheduling
 
 #### Objective
@@ -113,12 +115,38 @@ Kubernetes waits for the node to recover before rescheduling to avoid data corru
 Node shutdown does not immediately trigger pod recreation for StatefulSets.
 Manual intervention is required if the node is permanently unavailable.
 
+---
+
+### Scenario 3 Recovery: Manual Pod Rescheduling
+
+#### Objective
+Recover a StatefulSet pod when the node is permanently down.
+
+#### Recovery Steps
+
+1. Force delete the stuck pod:
+
+   `kubectl delete pod mysql-0 --grace-period=0 --force`
+
+2. Unattach the disk from Longhorn dashboard
+
+3. Watch the pod get recreated:
+
+   `kubectl get pods -w`
+
+#### Result
+- The StatefulSet recreates the pod with the same name
+- The pod is scheduled on a healthy node
+- Longhorn reattaches the existing volume
+- The application starts successfully
+
+#### Key Takeaway
+When a node is permanently unavailable, force-deleting the pod allows Kubernetes
+and Longhorn to safely reschedule the workload without data loss.
 
 
 ## Future Failure Scenarios Roadmap
-- Node shutdown and pod rescheduling
 - Broken deployment rollout and rollback
-- PVC reattachment after pod deletion
 
 ## Key Design Decisions
 - Why Flannel
