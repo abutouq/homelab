@@ -144,6 +144,45 @@ Recover a StatefulSet pod when the node is permanently down.
 When a node is permanently unavailable, force-deleting the pod allows Kubernetes
 and Longhorn to safely reschedule the workload without data loss.
 
+---
+
+### Scenario 4: PVC Persistence With Existing MySQL Data
+
+#### Objective
+Verify that existing MySQL data stored on a Longhorn-backed PVC
+persists across StatefulSet scale-down and scale-up operations.
+
+The database and data were created **before** this test.
+
+#### Precondition
+- MySQL StatefulSet is running
+- Database `app_data` already exists
+- Table `users` already exists and contains data
+
+Example verification:
+kubectl exec -it mysql-0 -- \
+  mysql -u root -p -e "SELECT * FROM app_data.users;"
+
+#### Data Validation
+
+Verify the original data is still present:
+
+kubectl exec -it mysql-0 -- \
+  mysql -u root -p -e "SELECT * FROM app_data.users;"
+
+#### Observed Behavior
+
+- Pod with higher ordinal is deleted during scale-down
+- Corresponding PVC and Longhorn volume remain
+- Original pod continues running
+- MySQL data remains intact and accessible
+
+#### Key Takeaway
+
+StatefulSet scale-down deletes pods but preserves PVCs by design.
+Longhorn retains the volume to prevent accidental data loss.
+Scaling back up will reuse the existing volume and data.
+
 
 ## Future Failure Scenarios Roadmap
 - Broken deployment rollout and rollback
