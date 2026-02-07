@@ -73,6 +73,13 @@ Runs Longhorn preflight validation to ensure all nodes meet the requirements.
 - Longhorn for persistent storage
 - Grafana + Prometheus
 
+## Failure Scenarios
+- Failure Scenario – Broken Ingress
+
+    I intentionally misconfigured the Ingress to point to a non-existing Service.
+    NGINX returned 503 Service Temporarily Unavailable, and kubectl describe ingress clearly showed that the backend Service was not found.
+    This confirmed that Ingress routing, TLS, and the controller itself were working correctly, and the issue was isolated to the Service layer.
+
 ## Future Failure Scenarios Roadmap
 - Node shutdown and pod rescheduling
 - Broken deployment rollout and rollback
