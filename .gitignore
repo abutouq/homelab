@@ -1,0 +1,8 @@
+freqtrade/strategies
+ansible/check.yaml
+ansible/hosts.ini
+freqtrade/PostgreSQL
+architecture/.DS_Store
+freqtrade/Strategy005_SandidEdition-prod.sqlite
+freqtrade/freqtrade-secrets.yaml
+StatefulSet/01-secret.yaml
