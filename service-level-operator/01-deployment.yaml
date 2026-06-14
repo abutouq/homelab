@@ -20,6 +20,13 @@ spec:
     metadata:
       labels:
         app: service-level-operator
+      annotations:
+        # Picked up by the external Prometheus's kubernetes_sd_configs pod
+        # discovery job (see 03-external-prometheus-rbac.yaml) so it scrapes
+        # service_level_slo_objective_ratio / service_level_sli_result_*.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: service-level-operator
       containers:
