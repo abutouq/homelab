@@ -160,12 +160,3 @@ nodeSelector: {
 tolerations: []
 
 affinity: {}
-
-# SLO definition via service-level-operator (see service-level-operator/ for
-# the cluster-wide operator/CRD install). Feeds Grafana dashboard 8793.
-serviceLevel:
-  enabled: true
-  availabilityObjectivePercent: 99.9
-  # Point this at your Prometheus service, e.g.:
-  #   kubectl get svc -n monitoring | grep -i prometheus
-  prometheusAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090

@@ -1,0 +1,54 @@
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: pool-155
+spec:
+  cidr: 10.244.3.0/24
+  nodeSelector: subnet-group == "rack-node-155"
+  vxlanMode: Always
+  natOutgoing: true
+---
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: pool-156
+spec:
+  cidr: 10.244.2.0/24
+  nodeSelector: subnet-group == "rack-node-156"
+  vxlanMode: Always
+  natOutgoing: true
+---
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: pool-157
+spec:
+  cidr: 10.244.0.0/24
+  nodeSelector: subnet-group == "rack-node-157"
+  vxlanMode: Always
+  natOutgoing: true
+---
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: pool-159
+spec:
+  cidr: 10.244.4.0/24
+  nodeSelector: subnet-group == "rack-node-159"
+  vxlanMode: Always
+  natOutgoing: true
+---
+# Marks the homelab LAN as "internal" to Calico so pod replies to LAN hosts
+# (e.g. the external Prometheus on 192.168.0.158) aren't SNAT'd to the node IP
+# by the natOutgoing rule on the pools above.
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: lan-no-nat
+spec:
+  cidr: 192.168.0.0/24
+  blockSize: 24
+  disabled: true
+  natOutgoing: false
+  ipipMode: Never
+  vxlanMode: Never

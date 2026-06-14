@@ -1,0 +1,44 @@
+# RBAC for the external Prometheus (Docker Compose, running on worker-01 /
+# 192.168.0.158) to discover and scrape pods via the Kubernetes API
+# (kubernetes_sd_configs, role: pod). The resulting token/CA cert are placed
+# on worker-01 at /data/monitoring/prometheus/k8s-{token,ca.crt}.
+#
+# Apply manually: kubectl apply -f RBAC/prometheus-external.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-external
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-external
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-external
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-external
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-external
+    namespace: monitoring
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prometheus-external-token
+  namespace: monitoring
+  annotations:
+    kubernetes.io/service-account.name: prometheus-external
+type: kubernetes.io/service-account-token
