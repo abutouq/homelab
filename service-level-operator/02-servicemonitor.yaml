@@ -7,8 +7,14 @@
 # If your Prometheus instance uses a serviceMonitorSelector with a specific
 # label (commonly `release: <helm-release-name>`), add it below, or this
 # ServiceMonitor will be ignored. If you're not using prometheus-operator,
-# delete this file - Prometheus' scrape_configs will need a static target
+# Prometheus' scrape_configs will need a static target
 # (service-level-operator.monitoring.svc:80) instead.
+#
+# SkipDryRunOnMissingResource: this cluster's Prometheus doesn't have the
+# prometheus-operator ServiceMonitor CRD installed, which otherwise fails
+# ArgoCD's pre-sync dry-run for the whole sync wave (and cascades into
+# "Resource not found" for everything in later waves, e.g. the ServiceLevel
+# CR). This makes ArgoCD skip just this resource until the CRD exists.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -17,6 +23,8 @@ metadata:
   labels:
     app: service-level-operator
     # release: kube-prometheus-stack   # <-- uncomment/adjust to match your Prometheus selector
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   selector:
     matchLabels:
