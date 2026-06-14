@@ -1,0 +1,127 @@
+---
+# Zero-touch Teleport Kubernetes agent install
+#
+# Usage:
+#   ansible-playbook -i hosts.ini ansible/install_teleport.yml \
+#     -e teleport_proxy_addr=<tenant>.teleport.sh:443 \
+#     -e teleport_join_token=<token-from-teleport-cloud>
+#
+# How to get a join token:
+#   1. Sign up / log in at https://teleport.sh
+#   2. Go to Zero Trust > Kubernetes > Enroll New Cluster
+#   3. Copy the token shown in the helm install command
+#
+# What this playbook does:
+#   1. Installs Helm on the control plane if not already present
+#   2. Creates the 'teleport' namespace
+#   3. Adds the Teleport Helm repo
+#   4. Deploys the teleport-kube-agent chart (Helm owns the token Secret)
+#
+# After this runs the cluster appears in your Teleport dashboard immediately.
+# RBAC (exec into ase-market pods) is handled by the ase-market Helm chart templates.
+
+- name: Deploy Teleport Kubernetes Agent
+  hosts: masters
+  remote_user: ubuntu
+  become: true
+
+  vars:
+    teleport_namespace: teleport
+    teleport_release_name: teleport-kube-agent
+    teleport_chart_version: "18.7.3"
+    teleport_proxy_addr: "teleport.homebytes.space:443"
+    teleport_cluster_name: kubernetes       # label shown in Teleport UI
+    teleport_values_src: "{{ playbook_dir }}/../teleport/values.yaml"
+    teleport_values_remote: "/tmp/teleport-values.yaml"
+
+  tasks:
+
+    # -------------------------
+    # 1. Helm installation
+    # -------------------------
+
+    - name: Check if Helm is installed
+      command: helm version --short
+      register: helm_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install Helm via get-helm-3 script
+      shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      when: helm_check.rc != 0
+
+    # -------------------------
+    # 2. Namespace
+    # -------------------------
+
+    - name: Create teleport namespace
+      become_user: ubuntu
+      command: kubectl create namespace {{ teleport_namespace }} --dry-run=client -o yaml
+      register: ns_yaml
+      changed_when: false
+
+    - name: Apply teleport namespace
+      become_user: ubuntu
+      shell: |
+        kubectl create namespace {{ teleport_namespace }} \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    # -------------------------
+    # 3. Teleport Helm repo
+    # -------------------------
+
+    - name: Add Teleport Helm repository
+      become_user: ubuntu
+      command: helm repo add teleport https://charts.releases.teleport.dev
+      register: repo_add
+      changed_when: "'already exists' not in repo_add.stdout"
+
+    - name: Update Helm repos
+      become_user: ubuntu
+      command: helm repo update
+
+    # -------------------------
+    # 5. Deploy the agent
+    # -------------------------
+
+    - name: Copy values.yaml to remote host
+      copy:
+        src: "{{ teleport_values_src }}"
+        dest: "{{ teleport_values_remote }}"
+        mode: '0644'
+
+    - name: Deploy teleport-kube-agent chart
+      become_user: ubuntu
+      no_log: true
+      shell: |
+        helm upgrade --install {{ teleport_release_name }} teleport/teleport-kube-agent \
+          --namespace {{ teleport_namespace }} \
+          --values {{ teleport_values_remote }} \
+          --set proxyAddr={{ teleport_proxy_addr }} \
+          --set kubeClusterName={{ teleport_cluster_name }} \
+          --set authToken={{ teleport_join_token }} \
+          {{ '--version ' + teleport_chart_version if teleport_chart_version else '' }} \
+          --wait --timeout 3m
+
+    # -------------------------
+    # 6. Verify
+    # -------------------------
+
+    - name: Wait for agent pod to be ready
+      become_user: ubuntu
+      command: >
+        kubectl rollout status deployment/{{ teleport_release_name }}
+        -n {{ teleport_namespace }} --timeout=120s
+      register: rollout
+      changed_when: false
+
+    - name: Show agent pod status
+      become_user: ubuntu
+      command: kubectl get pods -n {{ teleport_namespace }}
+      register: pod_status
+      changed_when: false
+
+    - name: Print pod status
+      debug:
+        msg: "{{ pod_status.stdout_lines }}"

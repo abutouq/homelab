@@ -8,22 +8,22 @@ Or from the repo root: `ansible-playbook -i ansible/hosts.ini ansible/<playbook>
 ## Node prerequisites
 - `install_open_iscsi.yml` — install `open-iscsi` (required by Longhorn)
 - `install_cryptsetup.yml` — install `cryptsetup` (required by Longhorn encrypted volumes)
-- `install_nfs_common.yaml` — install `nfs-common`
-- `NFSv4.yaml` — check kernel NFSv4/4.1/4.2 support
+- `install_nfs_common.yml` — install `nfs-common`
+- `check_nfsv4_support.yml` — check kernel NFSv4/4.1/4.2 support
 
 ## Cluster bootstrap
-- `k8s-node-setup.yml` — base node setup: kernel modules, swap, sysctl, containerd, kubeadm/kubelet/kubectl install
-- `install_calico.yaml` — one-time migration: remove leftover Flannel CNI state and finalize the Calico operator install (CNI is now Calico)
+- `k8s_node_setup.yml` — base node setup: kernel modules, swap, sysctl, containerd, kubeadm/kubelet/kubectl install
+- `install_calico.yml` — one-time migration: remove leftover Flannel CNI state and finalize the Calico operator install (CNI is now Calico)
 
 ## Maintenance / troubleshooting
-- `check.yaml` — reset CNI state and ensure iSCSI is installed
-- `k8s_fix_kubelet_dns.yaml` — fix kubelet DNS resolution via systemd-resolved
-- `longhornctl_preflight.yaml` — run Longhorn CLI preflight checks
-- `install_longhornctl.yaml` — install the `longhornctl` binary
+- `reset_cni_and_iscsi.yml` — reset CNI state and ensure iSCSI is installed
+- `fix_kubelet_dns.yml` — fix kubelet DNS resolution via systemd-resolved
+- `check_longhorn_preflight.yml` — run Longhorn CLI preflight checks
+- `install_longhornctl.yml` — install the `longhornctl` binary
 
 ## Observability & access
-- `node_exporter_install.yaml` — install and run Prometheus Node Exporter
-- `install_teleport.yaml` — deploy the Teleport Kubernetes agent (Helm)
+- `install_node_exporter.yml` — install and run Prometheus Node Exporter
+- `install_teleport.yml` — deploy the Teleport Kubernetes agent (Helm)
 
 ## Inventory & configuration
 - `hosts.ini` — `masters` / `workers` groups, with `homelab` (all nodes) and

@@ -1,5 +1,5 @@
 freqtrade/strategies
-ansible/check.yaml
+ansible/reset_cni_and_iscsi.yml
 ansible/hosts.ini
 freqtrade/PostgreSQL
 architecture/.DS_Store
