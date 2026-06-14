@@ -1,0 +1,29 @@
+# Optional: only needed if Prometheus is managed by prometheus-operator
+# (e.g. kube-prometheus-stack) and relies on ServiceMonitor CRDs for scrape
+# config. This lets Prometheus scrape the operator's own /metrics endpoint
+# (service_level_slo_objective_ratio, service_level_sli_result_*) which feed
+# Grafana dashboard 8793.
+#
+# If your Prometheus instance uses a serviceMonitorSelector with a specific
+# label (commonly `release: <helm-release-name>`), add it below, or this
+# ServiceMonitor will be ignored. If you're not using prometheus-operator,
+# delete this file - Prometheus' scrape_configs will need a static target
+# (service-level-operator.monitoring.svc:80) instead.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: service-level-operator
+  namespace: monitoring
+  labels:
+    app: service-level-operator
+    # release: kube-prometheus-stack   # <-- uncomment/adjust to match your Prometheus selector
+spec:
+  selector:
+    matchLabels:
+      app: service-level-operator
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  endpoints:
+    - port: http
+      interval: 30s

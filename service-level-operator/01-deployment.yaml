@@ -1,0 +1,62 @@
+# Deployment + Service for service-level-operator.
+# Pinned to v0.3.0 (the last tagged release - "latest" predates the project's
+# 2021 archival and may not reflect a stable image).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-level-operator
+  namespace: monitoring
+  labels:
+    app: service-level-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-level-operator
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: service-level-operator
+    spec:
+      serviceAccountName: service-level-operator
+      containers:
+        - name: service-level-operator
+          image: quay.io/spotahome/service-level-operator:v0.3.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-level-operator
+  namespace: monitoring
+  labels:
+    app: service-level-operator
+spec:
+  selector:
+    app: service-level-operator
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

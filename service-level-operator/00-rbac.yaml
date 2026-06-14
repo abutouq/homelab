@@ -1,0 +1,55 @@
+# RBAC for spotahome/service-level-operator
+# (https://github.com/spotahome/service-level-operator - archived but
+# functional; powers Grafana dashboard 8793 "Service Level SLI/SLO":
+# https://grafana.com/grafana/dashboards/8793-service-level-sli-slo/).
+#
+# The operator self-registers the ServiceLevel CRD on startup, so it needs
+# broad apiextensions permissions plus access to its own CRD's resources
+# cluster-wide (it watches ServiceLevel objects in all namespaces).
+#
+# If your Prometheus/Grafana stack already lives in a "monitoring" namespace,
+# this Namespace object is a harmless no-op - kubectl apply will just
+# confirm it exists. Otherwise adjust the namespace below to match your setup.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: service-level-operator
+  namespace: monitoring
+  labels:
+    app: service-level-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: service-level-operator
+  labels:
+    app: service-level-operator
+rules:
+  # Register and check the ServiceLevel CRD.
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["*"]
+  # Watch/update ServiceLevel objects cluster-wide.
+  - apiGroups: ["monitoring.spotahome.com"]
+    resources: ["servicelevels", "servicelevels/status"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: service-level-operator
+  labels:
+    app: service-level-operator
+subjects:
+  - kind: ServiceAccount
+    name: service-level-operator
+    namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: service-level-operator
