@@ -1,0 +1,48 @@
+---
+- name: Finalize Calico Operator Migration
+  hosts: all
+  remote_user: ubuntu
+  become: true
+  vars:
+    control_plane_ip: "{{ groups['masters'][0] }}"
+    kubeconfig: "/etc/kubernetes/admin.conf"
+
+  tasks:
+    - name: Kill any Classic Calico remnants
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig }} delete ds calico-node -n kube-system --ignore-not-found
+        kubectl --kubeconfig={{ kubeconfig }} delete deploy calico-kube-controllers -n kube-system --ignore-not-found
+      run_once: true
+      delegate_to: "{{ control_plane_ip }}"
+
+    - name: Force cleanup of node-side network state
+      shell: |
+        rm -f /etc/cni/net.d/10-flannel.conflist
+        rm -rf /var/lib/calico
+        ip link delete flannel.1 || true
+      ignore_errors: yes
+
+    - name: Restart services to flush networking
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - containerd
+        - kubelet
+
+    - name: Wait for Operator Pods to stabilize
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig }} get pods -n tigera-operator -l k8s-app=tigera-operator -o jsonpath='{.items[0].status.phase}'
+      register: operator_status
+      until: operator_status.stdout == "Running"
+      retries: 10
+      delay: 5
+      run_once: true
+      delegate_to: "{{ control_plane_ip }}"
+
+    - name: Apply the Custom Installation (This triggers the calico-system pods)
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig }} apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.0/manifests/custom-resources.yaml
+      run_once: true
+      delegate_to: "{{ control_plane_ip }}"
+      ignore_errors: yes # In case it already exists

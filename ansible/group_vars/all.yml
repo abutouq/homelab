@@ -1,0 +1,5 @@
+---
+# Cluster-wide configuration shared across playbooks.
+
+# Kubernetes apt repo track (pkgs.k8s.io), e.g. "1.34" -> v1.34 repo.
+kubernetes_version: "1.34"
