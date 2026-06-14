@@ -26,47 +26,39 @@ Internet access from nodes (or a local mirror/registry)
 
 * Prepares all nodes with required kernel modules, sysctl settings, and base system packages.
 
-> ansible-playbook -i inventory.ini ansible/k8s-node-setup.yaml
-
-* How/where to download your program
-* Any modifications needed to be made to files/folders
+> ansible-playbook -i ansible/hosts.ini ansible/k8s_node_setup.yml
 
 <li>Open-iSCSI Installation</li>
 Installs Open-iSCSI, which is required for Kubernetes persistent storage and Longhorn.
 
-> ansible-playbook -i inventory.ini ansible/open-iscsi.yaml
+> ansible-playbook -i ansible/hosts.ini ansible/install_open_iscsi.yml
 
 
 <li>NFSv4 Setup</li>
 Installs and configures NFSv4 support on all Kubernetes nodes.
 
-> ansible-playbook -i inventory.ini ansible/NFSv4.yaml
+> ansible-playbook -i ansible/hosts.ini ansible/check_nfsv4_support.yml
 
 <li>Cryptsetup Installation</li>
 
 Installs cryptsetup for encrypted block device support (required by Longhorn).
 
-> ansible-playbook -i inventory.ini ansible/cryptsetup.yaml
-
-<li>Flannel Network Plugin</li>
-Deploys the Flannel CNI for pod networking.
-
-> ansible-playbook -i inventory.ini ansible/install_flannel.yaml
-
-* If CNI logic is separated:
-> ansible-playbook -i inventory.ini ansible/install_flannel_cni.yaml
+> ansible-playbook -i ansible/hosts.ini ansible/install_cryptsetup.yml
 
 <li>Install longhornctl</li>
 Installs the Longhorn CLI (longhornctl) on the nodes or control host.
 
-> ansible-playbook -i inventory.ini ansible/install_longhornctl.yaml
+> ansible-playbook -i ansible/hosts.ini ansible/install_longhornctl.yml
 
 <li>Longhorn Preflight Checks</li>
 
 Runs Longhorn preflight validation to ensure all nodes meet the requirements.
 
-> ansible-playbook -i inventory.ini ansible/longhornctl_preflight.yaml
+> ansible-playbook -i ansible/hosts.ini ansible/check_longhorn_preflight.yml
 </ol>
+
+See [ansible/README.md](ansible/README.md) for the full playbook inventory
+and configuration layout (`group_vars`, `host_vars`, `ansible.cfg`).
 
 ## What This Cluster Runs
 - NGINX Ingress Controller
@@ -159,16 +151,11 @@ The database and data were created **before** this test.
 - Database `app_data` already exists
 - Table `users` already exists and contains data
 
-Example verification:
-kubectl exec -it mysql-0 -- \
-  mysql -u root -p -e "SELECT * FROM app_data.users;"
-
 #### Data Validation
 
 Verify the original data is still present:
 
-kubectl exec -it mysql-0 -- \
-  mysql -u root -p -e "SELECT * FROM app_data.users;"
+`kubectl exec -it mysql-0 -- mysql -u root -p -e "SELECT * FROM app_data.users;"`
 
 #### Observed Behavior
 
@@ -183,6 +170,110 @@ StatefulSet scale-down deletes pods but preserves PVCs by design.
 Longhorn retains the volume to prevent accidental data loss.
 Scaling back up will reuse the existing volume and data.
 
+
+---
+
+### Scenario 5: Teleport App Access Broken for ArgoCD
+
+#### Objective
+Diagnose why ArgoCD was unreachable through Teleport app access, presenting two
+distinct errors depending on which auto-discovered app was used.
+
+#### Symptoms
+- `argocd-server-https-argocd-kubernetes` → **"Internal Server Error"** in the Teleport UI
+- `argocd-server-http-argocd-kubernetes` → **"DNS_PROBE_POSSIBLE"** in the browser
+  (`argocd-server.argocd.svc.cluster.local's DNS address could not be found`)
+
+#### Diagnosis
+
+**Step 1 — Inspect auto-discovered app definitions:**
+
+```
+tctl get apps | grep -A 10 "argocd-server"
+```
+
+Both apps were created by the discovery service with `insecure_skip_verify: false`.
+
+**Step 2 — Check ArgoCD network policy:**
+
+```
+kubectl get networkpolicy argocd-server-network-policy -n argocd -o yaml
+```
+
+`ingress: [{}]` — allows all inbound traffic. Not the cause.
+
+**Step 3 — Confirm ArgoCD service name and port:**
+
+```
+kubectl get svc -n argocd
+```
+
+`argocd-server` on ports 80/443. The URIs in the auto-discovered apps were correct.
+
+#### Root Causes (two separate bugs)
+
+**Bug 1 — HTTPS app → "Internal Server Error"**
+
+`insecure_skip_verify: false` is the default for all apps created by Kubernetes auto-discovery.
+ArgoCD uses a self-signed TLS certificate. The Teleport agent rejected the TLS handshake before
+the connection reached ArgoCD.
+
+**Bug 2 — HTTP app → browser DNS error**
+
+ArgoCD's port 80 issues a `301` redirect to `https://argocd-server.argocd.svc.cluster.local/`.
+Teleport forwarded the `Location` header verbatim to the browser. The browser then tried to
+resolve the internal Kubernetes DNS name — impossible from outside the cluster.
+
+#### Why `tctl create --force` is not the fix
+
+The Kubernetes discovery service syncs periodically and re-generates the app resource from
+the live Kubernetes service spec. Any manual patch to `insecure_skip_verify` or `rewrite` would
+be overwritten on the next sync cycle.
+
+#### Fix — Static app entry in Helm values
+
+Add an `apps` entry to `teleport/values.yaml` and re-run Helm upgrade. Static apps defined here
+are served by the agent directly (with `teleport.dev/origin: config-file`) and are never touched
+by the discovery service.
+
+```yaml
+apps:
+  - name: argocd
+    uri: https://argocd-server.argocd.svc.cluster.local:443
+    insecure_skip_verify: true
+    rewrite:
+      redirect:
+        - "argocd-server.argocd.svc.cluster.local"
+```
+
+```bash
+helm upgrade teleport-kube-agent teleport/teleport-kube-agent \
+  -n teleport \
+  --reuse-values \
+  -f teleport/values.yaml
+```
+
+#### Verification
+
+```bash
+# Confirm app_server is registered with correct spec
+tctl get app_servers | grep -A 20 "name: argocd$"
+
+# Test HTTPS reachability from within the teleport namespace
+kubectl run -n teleport curl-test --image=curlimages/curl:latest --restart=Never \
+  -- curl -sk -o /dev/null -w "%{http_code}" https://argocd-server.argocd.svc.cluster.local/
+# Expected: 200
+kubectl delete pod -n teleport curl-test
+```
+
+#### Key Takeaway
+
+Teleport Kubernetes app auto-discovery always creates apps with `insecure_skip_verify: false`
+and no rewrite rules. Any service using a self-signed cert or that issues internal-hostname
+redirects requires a static `apps` entry in the agent Helm values to override those defaults.
+The static entry coexists with discovery — the broken auto-discovered apps remain but are unused.
+
+---
 
 ## Future Failure Scenarios Roadmap
 - Broken deployment rollout and rollback
