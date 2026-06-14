@@ -121,16 +121,6 @@ resources:
   requests:
     cpu: 100m
     memory: 128Mi
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
@@ -170,3 +160,12 @@ nodeSelector: {
 tolerations: []
 
 affinity: {}
+
+# SLO definition via service-level-operator (see service-level-operator/ for
+# the cluster-wide operator/CRD install). Feeds Grafana dashboard 8793.
+serviceLevel:
+  enabled: true
+  availabilityObjectivePercent: 99.9
+  # Point this at your Prometheus service, e.g.:
+  #   kubectl get svc -n monitoring | grep -i prometheus
+  prometheusAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
