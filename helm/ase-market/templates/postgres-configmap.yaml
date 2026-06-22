@@ -1,0 +1,145 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ase-market.fullname" . }}-postgres-init
+  labels:
+    {{- include "ase-market.labels" . | nindent 4 }}
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS stock_data (
+        id           SERIAL PRIMARY KEY,
+        stock_name   TEXT,
+        start_date   TEXT,
+        end_date     TEXT,
+        start_price  REAL,
+        end_price    REAL,
+        stocks_count INTEGER,
+        growth_rate  REAL
+    );
+
+    CREATE TABLE IF NOT EXISTS companies (
+        id           SERIAL PRIMARY KEY,
+        company_no   INTEGER,
+        company_id   INTEGER,
+        reuters_code TEXT,
+        company_name TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS monthly_stock_averages (
+        id                    SERIAL PRIMARY KEY,
+        symbol                TEXT,
+        month                 TEXT,
+        average_closing_price REAL
+    );
+
+    CREATE TABLE IF NOT EXISTS annual_financial_reports (
+        symbol                              TEXT,
+        year                                INTEGER,
+        net_income                          REAL,
+        shareholders_equity                 REAL,
+        total_assets                        REAL,
+        no_subscribed_shares                INTEGER,
+        current_assets                      REAL,
+        current_liabilities                 REAL,
+        total_liabilities                   REAL,
+        proposed_cash_dividends             REAL,
+        market_capitalization               REAL,
+        return_on_assets                    REAL,
+        return_on_equity                    REAL,
+        book_value                          REAL,
+        proportion_of_debt                  REAL,
+        cash_dividends_per_share            REAL,
+        earning_per_share                   REAL,
+        cash_dividends_to_earning_per_share REAL,
+        dividends_yield                     REAL,
+        price_book_value                    REAL,
+        price_earnings                      REAL,
+        fair_value                          REAL
+    );
+
+    CREATE TABLE IF NOT EXISTS financial_data (
+        id     SERIAL PRIMARY KEY,
+        symbol TEXT,
+        label  TEXT,
+        year   INTEGER,
+        value  REAL
+    );
+
+    CREATE TABLE IF NOT EXISTS company_financials (
+        company_name            TEXT,
+        average_dividend_yield  REAL,
+        last_price              REAL,
+        dividend_yield_times_25 REAL
+    );
+
+    CREATE TABLE IF NOT EXISTS live_price_scrapes (
+        id           SERIAL PRIMARY KEY,
+        scraped_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        http_status  INTEGER,
+        latency_ms   REAL,
+        success      INTEGER,
+        record_count INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS live_prices (
+        id         SERIAL PRIMARY KEY,
+        scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        symbol     TEXT,
+        price      REAL,
+        change_pct REAL,
+        volume     INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_summary (
+        id             SERIAL PRIMARY KEY,
+        date           TEXT,
+        top_gainers    INTEGER,
+        top_losers     INTEGER,
+        un_changed     INTEGER,
+        trading_value  TEXT,
+        trading_volume TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS top_gainers (
+        id                        SERIAL PRIMARY KEY,
+        object_id                 TEXT,
+        current_price             REAL,
+        current_variation_percent REAL,
+        open_price                REAL,
+        date                      TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS top_losers (
+        id                        SERIAL PRIMARY KEY,
+        object_id                 TEXT,
+        current_price             REAL,
+        current_variation_percent REAL,
+        open_price                REAL,
+        date                      TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS most_active_shares (
+        id                       SERIAL PRIMARY KEY,
+        object_id                TEXT,
+        total_market_value_traded INTEGER,
+        current_price            TEXT,
+        date                     TEXT,
+        summary_id               INTEGER,
+        FOREIGN KEY (summary_id) REFERENCES daily_summary(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS financial_growth_analysis (
+        id               SERIAL PRIMARY KEY,
+        symbol           TEXT,
+        year             INTEGER,
+        duration_months  INTEGER,
+        revenue_growth   REAL,
+        eps_growth       REAL,
+        price_growth     REAL,
+        cashflow_growth  REAL,
+        growth_score     REAL,
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (symbol, year, duration_months)
+    );
+{{- end }}
