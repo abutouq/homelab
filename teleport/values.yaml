@@ -25,6 +25,16 @@ apps:
       redirect:
         - "argocd-server.argocd.svc.cluster.local"
 
+  # Routes through Istio's own ingress gateway (not the NGINX ingress),
+  # matching the ase-market-vs VirtualService which selects on the
+  # ase-market-istio.homebytes.space Host header.
+  - name: ase-market
+    uri: http://istio-ingressgateway.istio-system.svc.cluster.local:80
+    rewrite:
+      headers:
+        - name: "Host"
+          value: "ase-market-istio.homebytes.space"
+
 resources:
   requests:
     cpu: 50m
