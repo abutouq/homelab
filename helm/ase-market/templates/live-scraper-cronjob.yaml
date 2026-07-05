@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ase-market.fullname" . }}-live-scraper
+  labels:
+    {{- include "ase-market.labels" . | nindent 4 }}
+    app.kubernetes.io/component: live-scraper
+spec:
+  schedule: "*/5 10-13 * * 0-4"
+  timeZone: "Asia/Amman"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "ase-market.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: live-scraper
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: live-scraper
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["php", "/var/www/html/scrape_live_prices.php"]
+              {{- if .Values.postgresql.enabled }}
+              env:
+                - name: DB_HOST
+                  value: {{ include "ase-market.fullname" . }}-postgres
+                - name: DB_PORT
+                  value: "5432"
+                - name: DB_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ase-market.fullname" . }}-postgres
+                      key: database
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ase-market.fullname" . }}-postgres
+                      key: username
+                - name: DB_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ase-market.fullname" . }}-postgres
+                      key: password
+              {{- end }}
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
