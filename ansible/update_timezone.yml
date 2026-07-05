@@ -1,0 +1,8 @@
+- name: Update server timezone to Asia/Amman
+  hosts: all
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: Set timezone to Asia/Amman
+      community.general.timezone:
+        name: Asia/Amman
