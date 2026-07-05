@@ -28,7 +28,7 @@
   vars:
     teleport_namespace: teleport
     teleport_release_name: teleport-kube-agent
-    teleport_chart_version: "18.7.3"
+    teleport_chart_version: "18.9.2"
     teleport_proxy_addr: "teleport.homebytes.space:443"
     teleport_cluster_name: kubernetes       # label shown in Teleport UI
     teleport_values_src: "{{ playbook_dir }}/../teleport/values.yaml"

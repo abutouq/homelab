@@ -1,0 +1,34 @@
+# Teleport Kubernetes Agent — Helm values
+# Agent dials out to teleport.homebytes.space — no inbound ports needed.
+# Token is injected at deploy time via Ansible (never stored in this file).
+
+roles: kube,app,discovery
+
+proxyAddr: "teleport.homebytes.space:443"
+kubeClusterName: kubernetes
+
+labels:
+  teleport.internal/resource-id: 1caa7d6c-faea-45d0-98cf-25db30342bbd
+
+# authToken is passed at deploy time via Ansible --set (not stored here)
+
+# Static app definitions — used when auto-discovery produces incorrect settings.
+# The discovery service creates argocd-server-http/https apps with insecure_skip_verify: false,
+# which breaks HTTPS (self-signed cert) and causes HTTP to leak an internal redirect
+# to the browser (argocd-server.argocd.svc.cluster.local). This static entry overrides
+# both problems: correct TLS handling and redirect rewriting.
+apps:
+  - name: argocd
+    uri: https://argocd-server.argocd.svc.cluster.local:443
+    insecure_skip_verify: true
+    rewrite:
+      redirect:
+        - "argocd-server.argocd.svc.cluster.local"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 150m
+    memory: 128Mi
