@@ -32,8 +32,7 @@ apps:
     uri: http://istio-ingressgateway.istio-system.svc.cluster.local:80
     rewrite:
       headers:
-        - name: "Host"
-          value: "ase-market-istio.homebytes.space"
+        - "Host: ase-market-istio.homebytes.space"
 
 resources:
   requests:
