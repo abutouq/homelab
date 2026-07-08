@@ -1,0 +1,24 @@
+# Exercise: STRICT mTLS for ase-market-helm.
+# With this applied, the sidecar's inbound listener on port 80 only accepts
+# Istio mTLS connections - plain TCP/HTTP (e.g. a LoadBalancer hitting the
+# pod directly) gets rejected at the TLS handshake.
+#
+# RESULT (tested 2026-06-11): applying this returned the LoadBalancer/NGINX
+# path to 502s, because ingress-nginx is not meshed and talks to the pod in
+# plaintext. Reverted to PERMISSIVE (the default - no PeerAuthentication
+# object needed) to restore service.
+#
+# To use STRICT here safely, first either:
+#   a) mesh ingress-nginx too (istio-injection=enabled on its namespace), or
+#   b) route external traffic through istio-ingressgateway (which is meshed
+#      by default) via a Gateway + VirtualService - see
+#      istio/gateway-ase-market.yaml.
+# Then re-apply this file.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict-mtls
+  namespace: ase-market-helm
+spec:
+  mtls:
+    mode: STRICT

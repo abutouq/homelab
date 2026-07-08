@@ -1,0 +1,58 @@
+version: "prometheus/v1"
+service: "ase-market"
+labels:
+  team: "platform"
+  env: "homelab"
+
+slos:
+  # ── Availability ──────────────────────────────────────────────────────────
+  # Counts 5xx responses as "bad" events at the Istio destination sidecar
+  # (reporter=destination = server-side view, avoids double-counting).
+  # 4xx are excluded: they represent client errors, not service failures.
+  #
+  # To verify the workload label live:
+  #   kubectl exec -n istio-system deploy/istiod -- \
+  #     pilot-agent request GET /metrics | grep 'destination_workload="ase-market"'
+  #
+  # Generate PrometheusRule:
+  #   sloth generate -i slo/ase-market.sloth.yaml \
+  #                  -o slo/generated/ase-market-prometheusrule.yaml
+  #
+  # Extract raw groups for Docker Compose Prometheus on .158:
+  #   yq '.spec' slo/generated/ase-market-prometheusrule.yaml \
+  #     > slo/generated/ase-market.rules.yaml
+  - name: "requests-availability"
+    goal: 0.995
+    description: >-
+      99.5% of HTTP requests to ase-market return a non-5xx response,
+      measured at the Istio destination sidecar over a 30-day rolling window.
+    sli:
+      events:
+        error_query: |
+          rate(istio_requests_total{
+            destination_workload="ase-market",
+            destination_workload_namespace="ase-market-helm",
+            reporter="destination",
+            response_code=~"5.."
+          }[{{.window}}])
+        total_query: |
+          rate(istio_requests_total{
+            destination_workload="ase-market",
+            destination_workload_namespace="ase-market-helm",
+            reporter="destination"
+          }[{{.window}}])
+    alerting:
+      name: "AseMarketHighErrorRate"
+      labels:
+        category: "availability"
+      annotations:
+        summary: >-
+          {{ $labels.sloth_service }} {{ $labels.sloth_slo }}
+          SLO burn rate is too high
+        runbook: "https://github.com/abutouq/homelab/blob/main/RUNBOOK.md#ase-market-slo-burn"
+      page_alert:
+        labels:
+          severity: "critical"
+      ticket_alert:
+        labels:
+          severity: "warning"

@@ -1,0 +1,59 @@
+# Istio control-plane config for the homelab.
+# Profile "demo" enables tracing/access-logs/ingress gateway out of the box
+# (good for learning), with resources tuned down for 4 vCPU / 8GB nodes.
+# Egress gateway is disabled - NetworkPolicies handle egress for now.
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: homelab-istio
+  namespace: istio-system
+spec:
+  profile: demo
+
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1024Mi
+
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          replicaCount: 1
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: false
+
+    # Avoids granting NET_ADMIN/NET_RAW to every meshed pod's init container -
+    # the istio-cni daemonset (in kube-system) does the iptables setup instead.
+    cni:
+      enabled: true
+      namespace: kube-system
+
+  values:
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+
+  meshConfig:
+    accessLogFile: /dev/stdout

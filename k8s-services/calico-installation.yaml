@@ -1,0 +1,16 @@
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    # We remove the ipPools list here so the Operator 
+    # doesn't auto-create the big 10.244.0.0/16 pool.
+    nodeAddressAutodetectionV4:
+      firstFound: true
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer 
+metadata:
+  name: default
+spec: {}

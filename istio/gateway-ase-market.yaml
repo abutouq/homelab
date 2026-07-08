@@ -1,0 +1,41 @@
+# Exercise: route external traffic to ase-market-helm via Istio's own
+# ingress gateway (istio-ingressgateway, MetalLB IP 192.168.0.201) instead
+# of NGINX. Uses a separate test hostname so it's purely additive - your
+# existing ase-market.homebytes.space NGINX ingress is untouched.
+#
+# Test with:
+#   curl --resolve ase-market-istio.homebytes.space:80:192.168.0.201 \
+#        http://ase-market-istio.homebytes.space/
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: ase-market-gateway
+  namespace: ase-market-helm
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "ase-market-istio.homebytes.space"
+
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: ase-market-vs
+  namespace: ase-market-helm
+spec:
+  hosts:
+    - "ase-market-istio.homebytes.space"
+  gateways:
+    - ase-market-gateway
+  http:
+    - route:
+        - destination:
+            host: ase-market-helm
+            port:
+              number: 80

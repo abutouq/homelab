@@ -1,0 +1,322 @@
+# Raw Prometheus rule groups extracted from ase-market-prometheusrule.yaml.
+# Consumed by the Docker Compose Prometheus on worker-01 (.158) via rule_files:.
+#
+# Sync procedure (run on worker-01 after any change to ase-market.sloth.yaml):
+#   cd ~/homelab && git pull
+#   cp slo/generated/ase-market.rules.yaml \
+#      /data/monitoring/prometheus/rules/ase-market-slo.rules.yaml
+#   curl -s -X POST http://localhost:9090/-/reload
+#
+# Verify rules loaded:
+#   curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[].name' | grep sloth
+#
+# NOTE on zero-traffic handling:
+#   Numerator: "or vector(0)" → 0 when no 5xx series exist
+#   Denominator: "(> 0) or vector(1)" → 1 when rate is 0 or series absent
+#   Combined: 0/1 = 0 (service is idle but not failing)
+#   Without this, 0/0 = NaN which Grafana shows as "no data".
+groups:
+  - name: sloth-slo-sli-recordings-ase-market-requests-availability
+    interval: 30s
+    rules:
+      - record: slo:sli_error:ratio_rate5m
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[5m]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[5m])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "5m"
+
+      - record: slo:sli_error:ratio_rate30m
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[30m]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[30m])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "30m"
+
+      - record: slo:sli_error:ratio_rate1h
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[1h]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[1h])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "1h"
+
+      - record: slo:sli_error:ratio_rate2h
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[2h]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[2h])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "2h"
+
+      - record: slo:sli_error:ratio_rate6h
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[6h]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[6h])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "6h"
+
+      - record: slo:sli_error:ratio_rate1d
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[1d]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[1d])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "1d"
+
+      - record: slo:sli_error:ratio_rate3d
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[3d]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[3d])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "3d"
+
+      - record: slo:sli_error:ratio_rate30d
+        expr: |
+          (
+            sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination",response_code=~"5.."}[30d]))
+            or vector(0)
+          )
+          /
+          (
+            (sum(rate(istio_requests_total{destination_workload="ase-market",destination_workload_namespace="ase-market-helm",reporter="destination"}[30d])) > 0)
+            or vector(1)
+          )
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_window: "30d"
+
+  - name: sloth-slo-info-ase-market-requests-availability
+    interval: 30s
+    rules:
+      - record: sloth_slo_info
+        expr: "vector(1)"
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_mode: "static"
+          sloth_objective: "0.995"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_spec: "prometheus/v1"
+          sloth_version: "v0.11.0"
+
+  - name: sloth-slo-meta-recordings-ase-market-requests-availability
+    interval: 30s
+    rules:
+      - record: slo:objective:ratio
+        expr: "vector(0.995)"
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+
+      - record: slo:error_budget:ratio
+        expr: "vector(1 - 0.995)"
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+
+      - record: slo:time_period:days
+        expr: "vector(30)"
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+
+      - record: slo:current_burn_rate:ratio
+        expr: |
+          slo:sli_error:ratio_rate5m{sloth_id="ase-market-requests-availability"}
+          /
+          on(sloth_id, sloth_service, sloth_slo) group_left
+          slo:error_budget:ratio{sloth_id="ase-market-requests-availability"}
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+
+      - record: slo:period_burn_rate:ratio
+        expr: |
+          slo:sli_error:ratio_rate30d{sloth_id="ase-market-requests-availability"}
+          /
+          on(sloth_id, sloth_service, sloth_slo) group_left
+          slo:error_budget:ratio{sloth_id="ase-market-requests-availability"}
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+
+      - record: slo:period_error_budget_remaining:ratio
+        expr: |
+          1 - slo:period_burn_rate:ratio{sloth_id="ase-market-requests-availability"}
+        labels:
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+
+  - name: sloth-slo-alerts-ase-market-requests-availability
+    rules:
+      - alert: AseMarketHighErrorRate
+        expr: |
+          (
+            slo:sli_error:ratio_rate1h{sloth_id="ase-market-requests-availability"}
+            > (14.4 * 0.005)
+          )
+          and
+          (
+            slo:sli_error:ratio_rate5m{sloth_id="ase-market-requests-availability"}
+            > (14.4 * 0.005)
+          )
+        for: 2m
+        labels:
+          category: "availability"
+          severity: "critical"
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_severity: "page"
+        annotations:
+          summary: "{{ $labels.sloth_service }} {{ $labels.sloth_slo }} SLO burn rate is too high"
+          title: "(page) {{ $labels.sloth_service }} {{ $labels.sloth_slo }} burn rate {{ $value | humanize }}x — budget exhausted in ~2h"
+          runbook: "https://github.com/abutouq/homelab/blob/main/RUNBOOK.md#ase-market-slo-burn"
+
+      - alert: AseMarketHighErrorRate
+        expr: |
+          (
+            slo:sli_error:ratio_rate6h{sloth_id="ase-market-requests-availability"}
+            > (6 * 0.005)
+          )
+          and
+          (
+            slo:sli_error:ratio_rate30m{sloth_id="ase-market-requests-availability"}
+            > (6 * 0.005)
+          )
+        for: 15m
+        labels:
+          category: "availability"
+          severity: "critical"
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_severity: "page"
+        annotations:
+          summary: "{{ $labels.sloth_service }} {{ $labels.sloth_slo }} SLO burn rate is too high"
+          title: "(page) {{ $labels.sloth_service }} {{ $labels.sloth_slo }} burn rate {{ $value | humanize }}x — budget exhausted in ~6h"
+          runbook: "https://github.com/abutouq/homelab/blob/main/RUNBOOK.md#ase-market-slo-burn"
+
+      - alert: AseMarketHighErrorRate
+        expr: |
+          (
+            slo:sli_error:ratio_rate3d{sloth_id="ase-market-requests-availability"}
+            > (3 * 0.005)
+          )
+          and
+          (
+            slo:sli_error:ratio_rate6h{sloth_id="ase-market-requests-availability"}
+            > (3 * 0.005)
+          )
+        for: 1h
+        labels:
+          category: "availability"
+          severity: "warning"
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_severity: "ticket"
+        annotations:
+          summary: "{{ $labels.sloth_service }} {{ $labels.sloth_slo }} SLO error budget is being consumed faster than expected"
+          title: "(ticket) {{ $labels.sloth_service }} {{ $labels.sloth_slo }} burn rate {{ $value | humanize }}x over 3d window"
+          runbook: "https://github.com/abutouq/homelab/blob/main/RUNBOOK.md#ase-market-slo-burn"
+
+      - alert: AseMarketHighErrorRate
+        expr: |
+          (
+            slo:sli_error:ratio_rate30d{sloth_id="ase-market-requests-availability"}
+            > (1 * 0.005)
+          )
+          and
+          (
+            slo:sli_error:ratio_rate6h{sloth_id="ase-market-requests-availability"}
+            > (1 * 0.005)
+          )
+        for: 3h
+        labels:
+          category: "availability"
+          severity: "warning"
+          sloth_id: "ase-market-requests-availability"
+          sloth_service: "ase-market"
+          sloth_slo: "requests-availability"
+          sloth_severity: "ticket"
+        annotations:
+          summary: "{{ $labels.sloth_service }} {{ $labels.sloth_slo }} SLO error budget will be exhausted by end of period"
+          title: "(ticket) {{ $labels.sloth_service }} {{ $labels.sloth_slo }} burn rate {{ $value | humanize }}x over 30d window"
+          runbook: "https://github.com/abutouq/homelab/blob/main/RUNBOOK.md#ase-market-slo-burn"

@@ -1,0 +1,11 @@
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  variant: Calico
+  calicoNetwork:
+    bgp: Disabled  # BGP can be tricky in homelabs; VXLAN is safer for now
+    ipPools: []    # Keep this empty to use your /24 pools
+    nodeAddressAutodetectionV4:
+      firstFound: true

@@ -22,6 +22,7 @@
 
 - name: Deploy Teleport Kubernetes Agent
   hosts: masters
+  gather_facts: false
   remote_user: ubuntu
   become: true
 

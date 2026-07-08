@@ -1,0 +1,164 @@
+# Istio traffic-management exercise (mirrors the official "helloworld"
+# sample). Two versions of the same app behind one Service; DestinationRule
+# defines subsets by the "version" label; VirtualService splits traffic
+# 90/10 between them. Exposed via the existing istio-ingressgateway
+# (192.168.0.201) on host helloworld.homebytes.space.
+#
+# Test with:
+#   for i in $(seq 1 10); do
+#     curl -s --resolve helloworld.homebytes.space:80:192.168.0.201 \
+#          http://helloworld.homebytes.space/hello
+#   done
+# Roughly 9 of 10 responses should say "version:v1", 1 should say "version:v2".
+#
+# nodeSelector pins these to amd64 workers - the helloworld sample images
+# are amd64-only and would fail to pull on the arm64 pi5 control-plane node.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-playground
+  labels:
+    istio-injection: enabled
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helloworld
+  namespace: istio-playground
+  labels:
+    app: helloworld
+spec:
+  ports:
+    - port: 80
+      targetPort: 5000
+      name: http
+  selector:
+    app: helloworld
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-v1
+  namespace: istio-playground
+  labels:
+    app: helloworld
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helloworld
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: helloworld
+        version: v1
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: helloworld
+          image: docker.io/istio/examples-helloworld-v1
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-v2
+  namespace: istio-playground
+  labels:
+    app: helloworld
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helloworld
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: helloworld
+        version: v2
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: helloworld
+          image: docker.io/istio/examples-helloworld-v2
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: helloworld
+  namespace: istio-playground
+spec:
+  host: helloworld
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
+
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: helloworld-gateway
+  namespace: istio-playground
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "helloworld.homebytes.space"
+
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: helloworld
+  namespace: istio-playground
+spec:
+  hosts:
+    - "helloworld.homebytes.space"
+  gateways:
+    - helloworld-gateway
+  http:
+    - route:
+        - destination:
+            host: helloworld
+            subset: v1
+          weight: 90
+        - destination:
+            host: helloworld
+            subset: v2
+          weight: 10

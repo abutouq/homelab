@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3000" pageHeight="2400" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- TITLE -->
+    <mxCell id="title" value="Homelab Infrastructure — homebytes.space" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1a1a2e;" vertex="1" parent="1">
+      <mxGeometry x="40" y="10" width="2880" height="44" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════
+         LAYER 1: PHYSICAL
+    ═══════════════════════════════════════════════════ -->
+    <mxCell id="L1" value="① PHYSICAL LAYER — Compute &amp;amp; Networking" style="swimlane;fontStyle=1;align=left;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontColor=#003060;horizontal=1;" vertex="1" parent="1">
+      <mxGeometry x="40" y="60" width="2880" height="195" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_inet" value="&lt;b&gt;Internet&lt;/b&gt;" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="L1">
+      <mxGeometry x="20" y="38" width="120" height="75" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_router" value="&lt;b&gt;Home Router&lt;/b&gt;&lt;br&gt;192.168.0.1&lt;br&gt;Default GW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;fontSize=10;arcSize=8;fontColor=#000000;" vertex="1" parent="L1">
+      <mxGeometry x="175" y="45" width="140" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_cp" value="&lt;b&gt;Control Plane&lt;/b&gt;&lt;br&gt;192.168.0.157&lt;br&gt;K8s v1.34&lt;br&gt;Pool: 10.244.0.0/24" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=8;" vertex="1" parent="L1">
+      <mxGeometry x="355" y="38" width="165" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_w02" value="&lt;b&gt;worker-02&lt;/b&gt;&lt;br&gt;192.168.0.155&lt;br&gt;env: staging&lt;br&gt;Pool: 10.244.3.0/24" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="L1">
+      <mxGeometry x="560" y="38" width="165" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_w03" value="&lt;b&gt;worker-03&lt;/b&gt;&lt;br&gt;192.168.0.156&lt;br&gt;env: production&lt;br&gt;Pool: 10.244.2.0/24" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="L1">
+      <mxGeometry x="765" y="38" width="165" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_w04" value="&lt;b&gt;worker-04&lt;/b&gt;&lt;br&gt;192.168.0.159&lt;br&gt;env: production&lt;br&gt;Pool: 10.244.4.0/24" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="L1">
+      <mxGeometry x="970" y="38" width="165" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_prom" value="&lt;b&gt;Prometheus + Grafana&lt;/b&gt;&lt;br&gt;192.168.0.158&lt;br&gt;Docker Compose&lt;br&gt;(External scraper)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;arcSize=8;" vertex="1" parent="L1">
+      <mxGeometry x="1175" y="38" width="175" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_tc" value="&lt;b&gt;Teleport Cloud Proxy&lt;/b&gt;&lt;br&gt;teleport.homebytes.space&lt;br&gt;:443 (external SaaS)" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="L1">
+      <mxGeometry x="1395" y="38" width="180" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_gh" value="&lt;b&gt;GitHub&lt;/b&gt;&lt;br&gt;abutouq/homelab&lt;br&gt;(GitOps source)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;fontSize=10;arcSize=8;" vertex="1" parent="L1">
+      <mxGeometry x="1620" y="45" width="145" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L1_note" value="All nodes on 192.168.0.0/24 — connected via Gigabit switch" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontStyle=2;fontColor=#003060;" vertex="1" parent="L1">
+      <mxGeometry x="20" y="148" width="500" height="28" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════
+         LAYER 2: NETWORK & SECURITY
+    ═══════════════════════════════════════════════════ -->
+    <mxCell id="L2" value="② NETWORK &amp;amp; SECURITY LOGIC — VLANs &amp;amp; Access Control" style="swimlane;fontStyle=1;align=left;startSize=28;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontColor=#7d4e00;" vertex="1" parent="1">
+      <mxGeometry x="40" y="285" width="2880" height="195" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L2_lan" value="&lt;b&gt;Home LAN&lt;/b&gt;&lt;br&gt;192.168.0.0/24&lt;br&gt;Layer 2 (unmanaged)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;arcSize=8;" vertex="1" parent="L2">
+      <mxGeometry x="20" y="38" width="175" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L2_mlb" value="&lt;b&gt;MetalLB (L2 Mode)&lt;/b&gt;&lt;br&gt;Pool: 192.168.0.200–250&lt;br&gt;Istio GW: 192.168.0.201&lt;br&gt;ARP announcement" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0a30a;strokeColor=#BD7000;fontColor=#000000;fontSize=10;arcSize=8;" vertex="1" parent="L2">
+      <mxGeometry x="225" y="38" width="195" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L2_nginx" value="&lt;b&gt;NGINX Ingress Controller&lt;/b&gt;&lt;br&gt;TLS Termination&lt;br&gt;HTTPS :443 → HTTP :80&lt;br&gt;Hostname-based L7 routing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="L2">
+      <mxGeometry x="455" y="38" width="205" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L2_istiogw" value="&lt;b&gt;Istio IngressGateway&lt;/b&gt;&lt;br&gt;192.168.0.201&lt;br&gt;HTTP :80 | mTLS PERMISSIVE&lt;br&gt;VirtualService routing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=8;" vertex="1" parent="L2">
+      <mxGeometry x="695" y="38" width="205" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L2_calico" value="&lt;b&gt;Calico CNI — VXLAN Overlay (per-node pools)&lt;/b&gt;&lt;br&gt;10.244.0.0/24 (157)  |  10.244.3.0/24 (155)  |  10.244.2.0/24 (156)  |  10.244.4.0/24 (159)&lt;br&gt;BGP disabled — VXLAN encap — SNAT enabled for external egress" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;arcSize=8;" vertex="1" parent="L2">
+      <mxGeometry x="930" y="38" width="480" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L2_rbac" value="&lt;b&gt;RBAC&lt;/b&gt;&lt;br&gt;User: abdulah (x509 cert)&lt;br&gt;Role: pod-reader&lt;br&gt;NS: database-layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;arcSize=8;" vertex="1" parent="L2">
+      <mxGeometry x="1440" y="38" width="175" height="80" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════
+         LAYER 3: CLUSTER
+    ═══════════════════════════════════════════════════ -->
+    <mxCell id="L3" value="③ CONTAINER/COMPUTE LAYER — Kubernetes Cluster v1.34" style="swimlane;fontStyle=1;align=left;startSize=28;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontColor=#1a3c0f;" vertex="1" parent="1">
+      <mxGeometry x="40" y="510" width="2880" height="830" as="geometry" />
+    </mxCell>
+
+    <!-- ─── ROW 1: System Namespaces ─── -->
+
+    <!-- kube-system -->
+    <mxCell id="NS_ks" value="&lt;b&gt;kube-system&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;fontColor=#333333;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="20" y="40" width="310" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="coredns" value="CoreDNS&lt;br&gt;(Deployment)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="NS_ks">
+      <mxGeometry x="10" y="32" width="130" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="calico_node" value="calico-node&lt;br&gt;(DaemonSet)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="NS_ks">
+      <mxGeometry x="158" y="32" width="130" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="kube_proxy" value="kube-proxy (DaemonSet) | kubeadm control components" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#888888;fontSize=9;" vertex="1" parent="NS_ks">
+      <mxGeometry x="10" y="95" width="278" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- istio-system -->
+    <mxCell id="NS_is" value="&lt;b&gt;istio-system&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontColor=#003060;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="350" y="40" width="340" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="istiod" value="&lt;b&gt;istiod&lt;/b&gt;&lt;br&gt;Control Plane&lt;br&gt;CPU: 100m–500m&lt;br&gt;Mem: 512Mi–1Gi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="NS_is">
+      <mxGeometry x="10" y="32" width="145" height="75" as="geometry" />
+    </mxCell>
+    <mxCell id="istio_igw" value="IngressGateway&lt;br&gt;1 replica&lt;br&gt;CPU: 50m–250m&lt;br&gt;Mem: 64Mi–256Mi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="NS_is">
+      <mxGeometry x="168" y="32" width="155" height="75" as="geometry" />
+    </mxCell>
+    <mxCell id="istio_cni" value="istio-cni DaemonSet (avoids NET_ADMIN for sidecars)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#888888;fontSize=9;" vertex="1" parent="NS_is">
+      <mxGeometry x="10" y="113" width="313" height="22" as="geometry" />
+    </mxCell>
+
+    <!-- metallb-system -->
+    <mxCell id="NS_mlb" value="&lt;b&gt;metallb-system&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontColor=#7d4e00;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="710" y="40" width="245" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="mlb_ctrl" value="Controller&lt;br&gt;(Deployment)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="NS_mlb">
+      <mxGeometry x="10" y="32" width="105" height="55" as="geometry" />
+    </mxCell>
+    <mxCell id="mlb_spkr" value="Speaker&lt;br&gt;DaemonSet&lt;br&gt;L2 ARP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="NS_mlb">
+      <mxGeometry x="128" y="32" width="105" height="55" as="geometry" />
+    </mxCell>
+
+    <!-- argocd -->
+    <mxCell id="NS_argo" value="&lt;b&gt;argocd&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontColor=#3d0066;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="975" y="40" width="285" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="argo_srv" value="argocd-server&lt;br&gt;:443 (TLS)&lt;br&gt;Teleport app proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="NS_argo">
+      <mxGeometry x="10" y="32" width="125" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="argo_ctrl" value="App Controller&lt;br&gt;App: slo-rules&lt;br&gt;auto-sync&lt;br&gt;prune + selfHeal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="NS_argo">
+      <mxGeometry x="148" y="32" width="125" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- teleport -->
+    <mxCell id="NS_tel" value="&lt;b&gt;teleport&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontColor=#3d0066;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="1280" y="40" width="255" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="tel_pod" value="&lt;b&gt;Teleport Agent&lt;/b&gt;&lt;br&gt;Helm — 1 replica&lt;br&gt;Roles: kube, app, discovery&lt;br&gt;CPU: 50m–150m | Mem: 64–128Mi&lt;br&gt;Dials OUT — no inbound port" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="NS_tel">
+      <mxGeometry x="10" y="32" width="228" height="95" as="geometry" />
+    </mxCell>
+
+    <!-- monitoring -->
+    <mxCell id="NS_mon" value="&lt;b&gt;monitoring&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontColor=#7d3c00;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="1555" y="40" width="285" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="prom_in" value="Prometheus&lt;br&gt;(in-cluster)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="NS_mon">
+      <mxGeometry x="10" y="32" width="120" height="55" as="geometry" />
+    </mxCell>
+    <mxCell id="slo_rules" value="&lt;b&gt;SLO PrometheusRules&lt;/b&gt;&lt;br&gt;Synced by ArgoCD&lt;br&gt;99.5% availability SLO" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="NS_mon">
+      <mxGeometry x="148" y="32" width="125" height="75" as="geometry" />
+    </mxCell>
+
+    <!-- longhorn-system -->
+    <mxCell id="NS_lh" value="&lt;b&gt;longhorn-system&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontColor=#7d3c00;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="1860" y="40" width="310" height="145" as="geometry" />
+    </mxCell>
+    <mxCell id="lh_mgr" value="longhorn-manager&lt;br&gt;(DaemonSet)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="NS_lh">
+      <mxGeometry x="10" y="32" width="135" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="lh_ui" value="longhorn-ui&lt;br&gt;longhorn.homebytes.space&lt;br&gt;(NGINX Ingress + TLS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="NS_lh">
+      <mxGeometry x="160" y="32" width="138" height="65" as="geometry" />
+    </mxCell>
+    <mxCell id="lh_note" value="iSCSI backend | LUKS encryption | NFSv4 | Distributed block storage" style="text;html=1;fontSize=9;fillColor=none;strokeColor=none;align=center;" vertex="1" parent="NS_lh">
+      <mxGeometry x="5" y="108" width="298" height="24" as="geometry" />
+    </mxCell>
+
+    <!-- ─── ROW 2: Application Namespaces ─── -->
+
+    <!-- ase-market-helm -->
+    <mxCell id="NS_ase" value="&lt;b&gt;namespace: ase-market-helm&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontColor=#003060;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="20" y="210" width="730" height="345" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_dep" value="&lt;b&gt;ase-market Deployment&lt;/b&gt;&lt;br&gt;aabutouq/ase-stock-api:v1.0.2&lt;br&gt;Port :80 (PHP / HTTP)&lt;br&gt;HPA: 1–5 replicas @ 50% CPU&lt;br&gt;Node: env=production&lt;br&gt;CPU: 100m | Mem: 128Mi&lt;br&gt;Istio sidecar injected" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=8;" vertex="1" parent="NS_ase">
+      <mxGeometry x="15" y="32" width="210" height="135" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_pg" value="&lt;b&gt;PostgreSQL 16&lt;/b&gt;&lt;br&gt;StatefulSet&lt;br&gt;Port :5432&lt;br&gt;PVC: 5Gi (RWO)&lt;br&gt;CPU: 100m–500m&lt;br&gt;Mem: 256Mi–512Mi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;arcSize=8;" vertex="1" parent="NS_ase">
+      <mxGeometry x="245" y="32" width="185" height="135" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_ing" value="NGINX Ingress&lt;br&gt;ase-market.homebytes.space&lt;br&gt;TLS: stocks-tls-secret&lt;br&gt;Path: / → svc :80" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="NS_ase">
+      <mxGeometry x="450" y="32" width="260" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_igw" value="Istio Gateway&lt;br&gt;ase-market-istio.homebytes.space&lt;br&gt;→ istio-ingressgateway&lt;br&gt;mTLS: PERMISSIVE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=8;" vertex="1" parent="NS_ase">
+      <mxGeometry x="450" y="130" width="260" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_job" value="Import Job (one-shot)&lt;br&gt;import_financials_graham_valuation.php&lt;br&gt;TTL: 3600s | Connects → postgres:5432" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;arcSize=8;dashed=1;" vertex="1" parent="NS_ase">
+      <mxGeometry x="15" y="225" width="300" height="65" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_svc" value="Service: ase-market-helm&lt;br&gt;Type: LoadBalancer | Port :80" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="NS_ase">
+      <mxGeometry x="335" y="230" width="220" height="55" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ase_slo" value="SLO: 99.5% availability | istio_requests_total (5xx) | reporter=destination | Sloth → PrometheusRules" style="text;html=1;fontSize=9;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;arcSize=10;align=center;" vertex="1" parent="NS_ase">
+      <mxGeometry x="15" y="305" width="695" height="28" as="geometry" />
+    </mxCell>
+
+    <!-- freqtrade -->
+    <mxCell id="NS_ft" value="&lt;b&gt;namespace: freqtrade&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontColor=#1a3c0f;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="775" y="210" width="800" height="345" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_hf" value="&lt;b&gt;freqtrade-highfreq&lt;/b&gt;&lt;br&gt;:homelab-dry&lt;br&gt;Strategy005_HighFreq_v2&lt;br&gt;Port :8080 | Dry Run&lt;br&gt;DB: SQLite" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="NS_ft">
+      <mxGeometry x="15" y="32" width="200" height="110" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_s5" value="&lt;b&gt;freqtrade&lt;/b&gt;&lt;br&gt;:homelab&lt;br&gt;Strategy005_Sandid_Optimized&lt;br&gt;Port :8080 | Dry Run&lt;br&gt;CPU req: 1000m" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="NS_ft">
+      <mxGeometry x="230" y="32" width="200" height="110" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_sd" value="&lt;b&gt;freqtrade-sandid&lt;/b&gt;&lt;br&gt;:homelab&lt;br&gt;SandidEdition_Optimized&lt;br&gt;Port :8080 | Dry Run&lt;br&gt;DB: SQLite" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="NS_ft">
+      <mxGeometry x="445" y="32" width="200" height="110" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_pvc" value="PVC: freqtrade-data&lt;br&gt;200Mi | ReadWriteMany&lt;br&gt;Shared by all 3 pods" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;arcSize=8;" vertex="1" parent="NS_ft">
+      <mxGeometry x="15" y="185" width="200" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_pg" value="&lt;b&gt;PostgreSQL 16&lt;/b&gt;&lt;br&gt;StatefulSet | Port :5432&lt;br&gt;1Gi PVC (RWO)&lt;br&gt;Type: LoadBalancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;arcSize=8;" vertex="1" parent="NS_ft">
+      <mxGeometry x="230" y="185" width="200" height="85" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_svc" value="freqtrade-lb Service&lt;br&gt;Type: LoadBalancer&lt;br&gt;:80 → :8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;arcSize=8;" vertex="1" parent="NS_ft">
+      <mxGeometry x="445" y="185" width="200" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_cfg" value="HPA: 1–5 replicas @ 50% CPU  |  ConfigMap: config.json (62 Binance pairs)  |  Secrets: Telegram + API keys + JWT" style="text;html=1;fontSize=9;fillColor=#f8cecc;strokeColor=#b85450;rounded=1;arcSize=10;align=center;" vertex="1" parent="NS_ft">
+      <mxGeometry x="15" y="275" width="760" height="28" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ft_note" value="Exchange: Binance  |  Pairs: BCH, LTC, BTC, ETH, SOL, AVAX, XRP, DOGE, ADA + 53 more" style="text;html=1;fontSize=9;fillColor=none;strokeColor=none;align=center;" vertex="1" parent="NS_ft">
+      <mxGeometry x="15" y="310" width="760" height="24" as="geometry" />
+    </mxCell>
+
+    <!-- istio-playground -->
+    <mxCell id="NS_ip" value="&lt;b&gt;namespace: istio-playground&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontColor=#003060;arcSize=4;" vertex="1" parent="L3">
+      <mxGeometry x="1600" y="210" width="460" height="345" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ip_v1" value="&lt;b&gt;helloworld-v1&lt;/b&gt;&lt;br&gt;istio/examples-helloworld-v1&lt;br&gt;Port :5000&lt;br&gt;VirtualService weight: 90%&lt;br&gt;arch: amd64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=8;" vertex="1" parent="NS_ip">
+      <mxGeometry x="15" y="32" width="195" height="100" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ip_v2" value="&lt;b&gt;helloworld-v2&lt;/b&gt;&lt;br&gt;istio/examples-helloworld-v2&lt;br&gt;Port :5000&lt;br&gt;VirtualService weight: 10%&lt;br&gt;arch: amd64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=8;dashed=1;" vertex="1" parent="NS_ip">
+      <mxGeometry x="240" y="32" width="195" height="100" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ip_vs" value="&lt;b&gt;VirtualService&lt;/b&gt;&lt;br&gt;90% → v1 / 10% → v2&lt;br&gt;DestinationRule (subset: v1, v2)&lt;br&gt;Gateway: helloworld.homebytes.space" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;arcSize=8;" vertex="1" parent="NS_ip">
+      <mxGeometry x="15" y="155" width="420" height="75" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ip_note" value="Canary traffic splitting exercise  |  Istio demo profile  |  Sidecar proxies on all pods" style="text;html=1;fontSize=9;fillColor=none;strokeColor=none;align=center;" vertex="1" parent="NS_ip">
+      <mxGeometry x="10" y="240" width="435" height="24" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════
+         LAYER 4: APP & STORAGE
+    ═══════════════════════════════════════════════════ -->
+    <mxCell id="L4" value="④ APP &amp;amp; STORAGE LAYER — GitOps, SLOs, Remote Access &amp;amp; Exposed Services" style="swimlane;fontStyle=1;align=left;startSize=28;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontColor=#3d0066;" vertex="1" parent="1">
+      <mxGeometry x="40" y="1375" width="2880" height="225" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L4_slo" value="&lt;b&gt;SLO Observability (Sloth)&lt;/b&gt;&lt;br&gt;Target: 99.5% availability&lt;br&gt;Metric: istio_requests_total&lt;br&gt;Filter: 5xx, reporter=destination&lt;br&gt;Burn rate alerts: page + ticket&lt;br&gt;Generated: slo/generated/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;arcSize=8;" vertex="1" parent="L4">
+      <mxGeometry x="20" y="40" width="240" height="165" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L4_argo" value="&lt;b&gt;ArgoCD GitOps&lt;/b&gt;&lt;br&gt;Repo: github.com/abutouq/homelab&lt;br&gt;Branch: main&lt;br&gt;Path: slo/generated/&lt;br&gt;Dest: monitoring namespace&lt;br&gt;Sync: auto + prune + selfHeal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;arcSize=8;" vertex="1" parent="L4">
+      <mxGeometry x="285" y="40" width="240" height="165" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L4_tel" value="&lt;b&gt;Teleport Remote Access&lt;/b&gt;&lt;br&gt;SSH to all cluster nodes&lt;br&gt;kubectl exec via browser UI&lt;br&gt;App Proxy: ArgoCD (HTTPS)&lt;br&gt;Auto-discovers K8s services&lt;br&gt;Zero inbound firewall rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;arcSize=8;" vertex="1" parent="L4">
+      <mxGeometry x="550" y="40" width="240" height="165" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L4_hosts" value="&lt;b&gt;Exposed Hostnames&lt;/b&gt;&lt;br&gt;&lt;br&gt;ase-market.homebytes.space → NGINX Ingress (TLS :443) → ase-market svc :80&lt;br&gt;ase-market-istio.homebytes.space → Istio GW 192.168.0.201 → ase-market svc :80&lt;br&gt;longhorn.homebytes.space → NGINX Ingress (TLS :443) → longhorn-frontend :80&lt;br&gt;helloworld.homebytes.space → Istio GW 192.168.0.201 → VirtualService (90/10)&lt;br&gt;teleport.homebytes.space:443 → Teleport Cloud Proxy (external SaaS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;arcSize=8;align=left;" vertex="1" parent="L4">
+      <mxGeometry x="815" y="40" width="700" height="165" as="geometry" />
+    </mxCell>
+
+    <mxCell id="L4_ansible" value="&lt;b&gt;Ansible Bootstrap Playbooks&lt;/b&gt;&lt;br&gt;1. k8s_node_setup.yml&lt;br&gt;2. install_open_iscsi.yml&lt;br&gt;3. check_nfsv4_support.yml&lt;br&gt;4. install_cryptsetup.yml&lt;br&gt;5. install_calico.yml&lt;br&gt;6. install_node_exporter.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;arcSize=8;" vertex="1" parent="L4">
+      <mxGeometry x="1545" y="40" width="240" height="165" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════
+         TRAFFIC FLOW ARROWS
+    ═══════════════════════════════════════════════════ -->
+
+    <!-- Internet → Router -->
+    <mxCell id="A_inet_router" value="External traffic" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="L1_inet" target="L1_router" parent="L1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Router → Control Plane -->
+    <mxCell id="A_router_cp" value="API :6443" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;" edge="1" source="L1_router" target="L1_cp" parent="L1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Router → Workers (grouped label) -->
+    <mxCell id="A_router_w02" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;" edge="1" source="L1_router" target="L1_w02" parent="L1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="A_router_w03" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="L1_router" target="L1_w03" parent="L1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="A_router_w04" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="L1_router" target="L1_w04" parent="L1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- LAN → MetalLB (within L2) -->
+    <mxCell id="A_lan_mlb" value="ARP L2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="L2_lan" target="L2_mlb" parent="L2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- MetalLB → NGINX (within L2) -->
+    <mxCell id="A_mlb_nginx" value="HTTPS :443" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="L2_mlb" target="L2_nginx" parent="L2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- MetalLB → Istio GW (within L2) -->
+    <mxCell id="A_mlb_istiogw" value="HTTP :80" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="L2_mlb" target="L2_istiogw" parent="L2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- NGINX → ase-market Ingress (cross-layer L2→L3) -->
+    <mxCell id="A_nginx_ase_ing" value="ase-market.homebytes.space" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;" edge="1" source="L2_nginx" target="ase_ing" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- NGINX → Longhorn UI (cross-layer L2→L3) -->
+    <mxCell id="A_nginx_lh" value="longhorn.homebytes.space" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;fontSize=10;dashed=1;" edge="1" source="L2_nginx" target="lh_ui" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Istio GW → ase-market Istio Gateway cell (cross-layer) -->
+    <mxCell id="A_istiogw_ase" value="ase-market-istio.homebytes.space" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;" edge="1" source="L2_istiogw" target="ase_igw" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Istio GW → helloworld VirtualService (cross-layer) -->
+    <mxCell id="A_istiogw_hw" value="helloworld.homebytes.space" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;" edge="1" source="L2_istiogw" target="ip_vs" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ase_ing → ase_svc -->
+    <mxCell id="A_ase_ing_svc" value=":80" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;" edge="1" source="ase_ing" target="ase_svc" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ase_igw → ase_dep -->
+    <mxCell id="A_ase_igw_dep" value=":80" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;dashed=1;" edge="1" source="ase_igw" target="ase_dep" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ase_svc → ase_dep -->
+    <mxCell id="A_ase_svc_dep" value="routes to" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;" edge="1" source="ase_svc" target="ase_dep" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ase_dep → ase_pg -->
+    <mxCell id="A_ase_dep_pg" value="JDBC :5432" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;fontSize=10;" edge="1" source="ase_dep" target="ase_pg" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ase_job → ase_pg -->
+    <mxCell id="A_ase_job_pg" value="ETL import" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;fontSize=10;dashed=1;" edge="1" source="ase_job" target="ase_pg" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- VirtualService → v1 -->
+    <mxCell id="A_vs_v1" value="90%" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;" edge="1" source="ip_vs" target="ip_v1" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- VirtualService → v2 -->
+    <mxCell id="A_vs_v2" value="10%" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;dashed=1;" edge="1" source="ip_vs" target="ip_v2" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ft_svc → ft_hf / ft_s5 / ft_sd -->
+    <mxCell id="A_ftsvc_hf" value=":8080" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;" edge="1" source="ft_svc" target="ft_hf" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="A_ftsvc_s5" value=":8080" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;" edge="1" source="ft_svc" target="ft_s5" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="A_ftsvc_sd" value=":8080" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=10;" edge="1" source="ft_svc" target="ft_sd" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ArgoCD → GitHub (cross-layer L3→L1) -->
+    <mxCell id="A_argo_gh" value="git pull (main branch)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontSize=10;dashed=1;fontStyle=2;" edge="1" source="argo_ctrl" target="L1_gh" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ArgoCD → SLO Rules -->
+    <mxCell id="A_argo_slo" value="sync slo/generated" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontSize=10;" edge="1" source="argo_ctrl" target="slo_rules" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- External Prometheus → SLO Rules (scrape) -->
+    <mxCell id="A_prom_slo" value="scrape rules :9090" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;fontSize=10;dashed=1;" edge="1" source="L1_prom" target="slo_rules" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Teleport Agent → Teleport Cloud (dial-out) -->
+    <mxCell id="A_tel_cloud" value="dial-out :443 (TLS)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontSize=10;dashed=1;fontStyle=2;" edge="1" source="tel_pod" target="L1_tc" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- istiod → ase_dep (sidecar injection) -->
+    <mxCell id="A_istiod_sidecar" value="sidecar injection&lt;br&gt;(mTLS PERMISSIVE)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=9;dashed=1;" edge="1" source="istiod" target="ase_dep" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Longhorn → PVCs (provisions storage) -->
+    <mxCell id="A_lh_ase_pg" value="provisions PVC 5Gi" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;fontSize=9;dashed=1;" edge="1" source="lh_mgr" target="ase_pg" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="A_lh_ft_pvc" value="provisions PVC 200Mi" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;fontSize=9;dashed=1;" edge="1" source="lh_mgr" target="ft_pvc" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Teleport Cloud → ArgoCD (remote app access) -->
+    <mxCell id="A_tc_argo" value="app proxy → ArgoCD UI" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontSize=9;dashed=1;" edge="1" source="L1_tc" target="argo_srv" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>

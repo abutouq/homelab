@@ -1,0 +1,30 @@
+# ArgoCD Application: SLO PrometheusRule CRDs
+#
+# Applies slo/generated/ase-market-prometheusrule.yaml to the monitoring namespace.
+# These rules are consumed by Prometheus Operator if/when it is deployed in the cluster.
+#
+# The external Docker Compose Prometheus on worker-01 (.158) reads the raw rules file
+# directly from slo/generated/ase-market.rules.yaml — see RUNBOOK.md#slo-rules-sync.
+#
+# Apply this Application once:
+#   kubectl apply -f argocd/application-slo.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slo-rules
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abutouq/homelab.git
+    targetRevision: main
+    path: slo/generated
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
