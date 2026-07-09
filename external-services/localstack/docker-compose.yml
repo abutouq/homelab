@@ -6,7 +6,10 @@ networks:
 
 services:
   localstack:
-    image: localstack/localstack:latest
+    # Pinned, not :latest — newer LocalStack releases (confirmed with 2026.6.2)
+    # refuse to start at all without a paid LOCALSTACK_AUTH_TOKEN, even for
+    # community-tier services like Secrets Manager. 3.0 is free/unauthenticated.
+    image: localstack/localstack:3.0
     container_name: localstack
     restart: unless-stopped
     networks:

@@ -163,8 +163,25 @@ affinity: {}
 
 ase:
   # Credentials live in a pre-existing Secret named "<fullname>-ase-credentials"
-  # (keys: username, password), created once out-of-band — not managed by this chart.
+  # (keys: username, password). When secretsSync.enabled is false this Secret
+  # must be created out-of-band; when true, the CronJob below keeps it in sync.
   enabled: true
+
+secretsSync:
+  # Keeps the "<fullname>-ase-credentials" Secret in sync with an entry in a
+  # LocalStack-backed Secrets Manager (see ../../external-services/README.md).
+  # Disabled by default: LocalStack isn't deployed yet, and pods only read
+  # this Secret's values at container start, so a rotated value still needs
+  # a pod restart to take effect (no Reloader-style live-refresh here).
+  enabled: false
+  image:
+    repository: aabutouq/secrets-sync
+    tag: v1.0.0
+  schedule: "*/15 * * * *"
+  localstackEndpoint: "http://192.168.0.158:4566"
+  secretId: "ase-market/ase-credentials"
+  # targetSecretName defaults to "<fullname>-ase-credentials" when empty
+  targetSecretName: ""
 
 postgresql:
   enabled: true
