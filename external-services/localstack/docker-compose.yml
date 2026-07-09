@@ -1,0 +1,21 @@
+version: "3.9"
+
+networks:
+  localstack:
+    driver: bridge
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    restart: unless-stopped
+    networks:
+      - localstack
+    ports:
+      - "4566:4566"   # Edge port - all enabled AWS service APIs, incl. Secrets Manager
+    environment:
+      - SERVICES=secretsmanager
+      - PERSISTENCE=1
+      - DEBUG=0
+    volumes:
+      - ./data:/var/lib/localstack

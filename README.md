@@ -45,6 +45,12 @@ Inventory groups (`ansible/hosts.ini`):
 - **ase-market** — sample microservice deployed via Helm (`helm/ase-market/`), fronted by the Istio gateway
 - **freqtrade** — algorithmic trading bot deployments (`freqtrade/`)
 
+## Standalone Hosts
+
+Not everything runs in the cluster. `192.168.0.158` is a separate box
+running Docker Compose stacks (pihole, monitoring) directly — see
+[external-services/README.md](external-services/README.md).
+
 ## Prerequisites
 
 - Ansible installed on the control machine
@@ -65,3 +71,4 @@ Inventory groups (`ansible/hosts.ini`):
 - [RUNBOOK.md](RUNBOOK.md) — bootstrap order, day-2 operations, backups, incident playbooks
 - [ansible/README.md](ansible/README.md) — full playbook inventory and configuration layout (`group_vars`, `host_vars`, `ansible.cfg`)
 - [RBAC/README.md](RBAC/README.md) — per-user kubeconfig / RBAC setup
+- [external-services/README.md](external-services/README.md) — standalone (non-cluster) hosts and their Docker Compose stacks

@@ -1,0 +1,88 @@
+version: "3.9"
+
+networks:
+  monitoring:
+    driver: bridge
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: prometheus
+    restart: unless-stopped
+    user: "65534"
+    networks:
+      - monitoring
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - ./prometheus/k8s-ca.crt:/etc/prometheus/k8s-ca.crt:ro
+      - ./prometheus/k8s-token:/etc/prometheus/k8s-token:ro
+      - ./prometheus/data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    depends_on:
+      sloth:
+        condition: service_completed_successfully
+
+  sloth:
+    image: ghcr.io/slok/sloth:latest
+    container_name: sloth
+    restart: "no"
+    networks:
+      - monitoring
+    volumes:
+      - ./prometheus/sloth:/sloth-input:ro
+      - ./prometheus/rules:/sloth-output
+    command:
+      - generate
+      - -i
+      - /sloth-input/ase-market-slo.yaml
+      - -o
+      - /sloth-output/ase-market-slo-rules.yaml
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    restart: unless-stopped
+    user: "10001"
+    networks:
+      - monitoring
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - ./loki/data:/loki
+    command: -config.file=/etc/loki/loki.yml
+    ports:
+      - "3100:3100"
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    restart: unless-stopped
+    user: "472"
+    networks:
+      - monitoring
+    volumes:
+      - ./grafana:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=change-me
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=grafana.teleport.homebytes.space
+      - GF_SERVER_ROOT_URL=https://grafana.teleport.homebytes.space/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_USERS_VIEWERS_CAN_EDIT=true
+      - GF_SERVER_FORWARDED_HOST_HEADER=X-Forwarded-Host
+      - GF_SECURITY_CSRF_TRUSTED_ORIGINS=grafana.teleport.homebytes.space
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+
