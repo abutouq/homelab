@@ -40,8 +40,8 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.postgresql.enabled }}
           env:
+            {{- if .Values.postgresql.enabled }}
             - name: DB_HOST
               value: {{ include "ase-market.fullname" . }}-postgres
             - name: DB_PORT
@@ -61,7 +61,19 @@ spec:
                 secretKeyRef:
                   name: {{ include "ase-market.fullname" . }}-postgres
                   key: password
-          {{- end }}
+            {{- end }}
+            {{- if .Values.ase.enabled }}
+            - name: ASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ase-market.fullname" . }}-ase-credentials
+                  key: username
+            - name: ASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ase-market.fullname" . }}-ase-credentials
+                  key: password
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
