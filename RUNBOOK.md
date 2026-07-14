@@ -70,6 +70,7 @@ without data loss.
 | Broken Ingress | `503 Service Temporarily Unavailable` | Ingress points to a non-existent Service | Point Ingress `backend` at a valid Service |
 | Node failure / StatefulSet pod stuck | Pod stuck `Terminating`, no replacement scheduled | Kubernetes won't reschedule StatefulSet pods until the node recovers (data safety) | Force-delete pod + detach Longhorn volume — see [Backup & Restore](#backup--restore-longhorn--statefulset-data) |
 | ArgoCD unreachable via Teleport | "Internal Server Error" (HTTPS) or DNS error in browser (HTTP) | Auto-discovered Teleport apps default to `insecure_skip_verify: false` and forward internal redirect URLs | Add a static `apps` entry to `teleport/values.yaml` — see below |
+| "Control plane is down" (cluster-wide pod Pending/Terminating) | All nodes appear unreachable; pods stuck `Pending`/`Terminating` cluster-wide | Control-plane node's Calico host-endpoint iptables chain silently dropped new inbound connections (ARP resolved, but ICMP/TCP did not) | Reboot the control-plane node to clear the stuck iptables/Calico state — see below |
 
 ---
 
@@ -228,6 +229,89 @@ static `apps` entry in the agent Helm values to override those defaults. The
 static entry coexists with discovery — the broken auto-discovered apps remain
 but are unused.
 
+### "Control Plane Is Down" (Cluster-Wide Outage)
+
+**Objective:** Diagnose a reported control-plane outage on `pi5`
+(`192.168.0.157`) that manifested as the entire cluster appearing dead.
+
+**Symptoms:**
+- Old pods stuck `Terminating` for weeks; new pods stuck `Pending` with no
+  eligible node
+- `kubectl get nodes` (run locally on `pi5`) showed all worker nodes
+  `NotReady`
+- Pinging `pi5` from any other host on the LAN timed out
+
+**Diagnosis:**
+
+1. Confirmed the control plane itself was healthy — not actually down:
+   ```bash
+   curl -sk https://localhost:6443/healthz   # -> 200 ok
+   sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes -o wide
+   ```
+   `kube-apiserver`, `etcd`, `kube-scheduler`, `kube-controller-manager`
+   static pods were all `Running` continuously — no crash-loop. (The
+   kubelet log spam `"probe already exists for container"` for these pods
+   is a cosmetic kubelet bug, not a symptom.)
+
+2. Found all worker nodes `NotReady`, with `NodeStatusUnknown` /
+   `"Kubelet stopped posting node status"` since a specific timestamp per
+   node — `kubectl describe node <worker> | sed -n '/Conditions:/,/Addresses:/p'`.
+
+3. Confirmed the break was network-level, not kubelet-level: pinging
+   `pi5` from a worker (and vice versa) failed completely, while the same
+   worker could ping the LAN gateway and **the other worker** with 0% loss.
+   That ruled out router-wide AP/client isolation (workers could reach each
+   other fine) and pointed at something specific to `pi5`'s own host.
+
+4. On `pi5`: `ufw` was inactive and the top-level `iptables` `INPUT`/`OUTPUT`
+   policies were `ACCEPT` — so it wasn't a conventional host firewall.
+   `sudo iptables -L cali-INPUT -n -v` showed traffic being routed through
+   Calico's `cali-from-host-endpoint` chain (host-endpoint policy
+   enforcement). ARP resolved `pi5`'s MAC correctly from every host, but no
+   IP traffic (ICMP or TCP) got through in either direction — consistent
+   with Calico's host-endpoint iptables state getting stuck after ~9 days
+   of uptime, dropping new connections while leaving already-established
+   ones (like an existing SSH session) untouched.
+
+**Root cause:** `pi5`'s Calico host-endpoint iptables chain stopped
+accepting new inbound connections. Every worker could reach the gateway and
+each other, but nothing could reach `pi5`, and `pi5` couldn't reach anything
+either — explaining why the whole cluster looked dead even though the
+control plane process itself was healthy the entire time.
+
+**Fix:** Reboot `pi5`. This cleared the stuck iptables/Calico state; both
+healthy workers rejoined as `Ready` within moments of the control plane
+coming back.
+
+**Verification:**
+```bash
+ping -c3 192.168.0.157                 # 0% loss from any node
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes -o wide
+```
+
+**Key takeaway:** When a control plane "goes down" but `kubectl` still
+works *locally on the node itself*, suspect the node's own network/iptables
+state before assuming a Kubernetes-level failure. Symmetric ping tests
+between peers (worker↔worker vs. worker↔control-plane) quickly isolate
+whether the problem is network-wide (e.g. AP isolation) or specific to one
+host. A single node's Calico host-endpoint chain can silently wedge itself
+after long uptime without any corresponding kubelet or containerd crash.
+
+**Related, separate issue found during this investigation (not yet fixed):**
+`worker-04` (`192.168.0.155`) has a chronic PCIe/WiFi hardware fault —
+its `iwlwifi` card's PCIe link logs continuous `AER: Correctable` /
+`BadTLP` errors (336k+ in 6 days) with `ASPM L1 Enabled` on both ends of
+the link. This is independent of the incident above (it doesn't fully
+explain the simultaneous outage, since `worker-03` shows no such errors)
+but is a real, ongoing reliability risk for that node. Candidate fix:
+add `pcie_aspm=off` to `GRUB_CMDLINE_LINUX` and reboot — see
+[Roadmap / Backlog](#roadmap--backlog).
+
+---
+
 ## Roadmap / Backlog
 
 - Broken deployment rollout and rollback
+- `worker-04` chronic PCIe/WiFi `AER` bus errors (`ASPM L1` suspected) —
+  apply `pcie_aspm=off` kernel boot parameter and confirm errors stop; see
+  ["Control Plane Is Down"](#control-plane-is-down-cluster-wide-outage) incident
