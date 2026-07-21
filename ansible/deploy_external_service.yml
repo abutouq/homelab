@@ -1,0 +1,56 @@
+---
+# Deploy (or redeploy) a Docker Compose stack from external-services/<service_name>/
+# to a standalone host. The compose file in this repo is always the source
+# of truth — this playbook copies it to the target and brings the stack up.
+#
+# Usage:
+#   ansible-playbook -i external-hosts.ini deploy_external_service.yml \
+#     -e service_name=localstack -e remote_dir=/home/ubuntu/localstack \
+#     --ask-become-pass
+#
+# First deploy of a brand-new service — create the remote directory first
+# (this playbook won't do it for you, to avoid silently deploying to the
+# wrong path on a typo):
+#   ansible standalone -i external-hosts.ini -m file \
+#     -a "path=<remote_dir> state=directory" -b --ask-become-pass
+#
+# `become: true` on the copy is what lets this write into root-owned
+# directories (e.g. /data/monitoring) directly — no more manual
+# scp-to-/tmp-then-sudo-cp two-step.
+
+- name: Deploy external Docker Compose service
+  hosts: standalone
+  gather_facts: false
+  remote_user: ubuntu
+  become: true
+
+  vars:
+    compose_src: "{{ playbook_dir }}/../external-services/{{ service_name | default('') }}/docker-compose.yml"
+
+  tasks:
+    - name: Verify required vars are set
+      ansible.builtin.assert:
+        that:
+          - service_name is defined
+          - remote_dir is defined
+        fail_msg: "Pass -e service_name=<name> -e remote_dir=<path> (service_name must match a directory under external-services/)"
+
+    - name: Copy docker-compose.yml to the target host
+      ansible.builtin.copy:
+        src: "{{ compose_src }}"
+        dest: "{{ remote_dir }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Deploy stack (docker compose up -d)
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ remote_dir }}"
+      register: compose_up
+      changed_when: >-
+        'Started' in (compose_up.stdout + compose_up.stderr)
+        or 'Recreated' in (compose_up.stdout + compose_up.stderr)
+        or 'Created' in (compose_up.stdout + compose_up.stderr)
+
+    - name: Show deploy output
+      ansible.builtin.debug:
+        msg: "{{ (compose_up.stderr_lines | default([])) + (compose_up.stdout_lines | default([])) }}"

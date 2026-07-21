@@ -1,0 +1,69 @@
+---
+# Idempotently add/update/remove a Teleport app_service entry on a
+# standalone host's self-hosted Teleport control plane, then restart
+# teleport.service only if the config actually changed.
+#
+# Usage — register or update an app:
+#   ansible-playbook -i external-hosts.ini manage_teleport_app.yml \
+#     -e app_name=localstack -e app_uri=http://localhost:4566/ \
+#     --ask-become-pass
+#
+# Usage — remove an app:
+#   ansible-playbook -i external-hosts.ini manage_teleport_app.yml \
+#     -e app_name=localstack -e app_state=absent --ask-become-pass
+#
+# This always uses public_addr: "" (defaults to <name>.<proxy_domain>),
+# insecure_skip_verify: false, use_any_proxy_public_addr: false — matching
+# every app registered by hand so far. If a service needs something more
+# (e.g. a rewrite.headers block, like ase-market's Istio Host-header
+# routing in teleport/values.yaml), edit /etc/teleport.yaml by hand for
+# that one instead of extending this script for a one-off case.
+#
+# A restart briefly drops all active tsh/app sessions cluster-wide — this
+# host runs the whole control plane (auth + proxy), not just an agent.
+
+- name: Manage a Teleport app_service entry
+  hosts: standalone
+  gather_facts: false
+  remote_user: ubuntu
+  become: true
+
+  vars:
+    app_state: present
+
+  tasks:
+    - name: Verify required vars are set
+      ansible.builtin.assert:
+        that:
+          - app_name is defined
+          - app_state == 'absent' or app_uri is defined
+        fail_msg: "Pass -e app_name=<name> -e app_uri=<uri> (app_uri not required for app_state=absent)"
+
+    - name: Back up current teleport.yaml (rolling, single backup)
+      ansible.builtin.copy:
+        src: /etc/teleport.yaml
+        dest: /etc/teleport.yaml.bak
+        remote_src: true
+        mode: '0600'
+
+    - name: Upsert/remove the app entry
+      ansible.builtin.script: "files/manage_teleport_app.py --name '{{ app_name }}' --uri '{{ app_uri | default('') }}' --state '{{ app_state }}'"
+      register: app_result
+      changed_when: "'CHANGED' in app_result.stdout"
+
+    - name: Restart teleport to apply changes
+      ansible.builtin.systemd:
+        name: teleport
+        state: restarted
+      when: app_result is changed
+
+    - name: Confirm the app is registered
+      ansible.builtin.command: tctl apps ls
+      register: apps_ls
+      changed_when: false
+      when: app_result is changed
+
+    - name: Show registered apps
+      ansible.builtin.debug:
+        msg: "{{ apps_ls.stdout_lines }}"
+      when: app_result is changed
