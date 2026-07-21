@@ -37,7 +37,7 @@ Inventory groups (`ansible/hosts.ini`):
 | Load balancer | MetalLB | `k8s-services/metallb-config.yaml` |
 | Service mesh | Istio | Gateway + peer authentication for `ase-market` (`istio/`) |
 | Observability | Prometheus, Grafana, Node Exporter | |
-| Remote access | Teleport | Kubernetes agent via Helm (`teleport/`) |
+| Remote access | Teleport | In-cluster agent via Helm (`teleport/`) dials out to the self-hosted control plane on `192.168.0.158` (`external-services/192.168.0.158.md`) |
 | RBAC | Custom roles/bindings | `RBAC/` |
 
 ## Workloads
@@ -48,7 +48,9 @@ Inventory groups (`ansible/hosts.ini`):
 ## Standalone Hosts
 
 Not everything runs in the cluster. `192.168.0.158` is a separate box
-running Docker Compose stacks (pihole, monitoring) directly — see
+running Docker Compose stacks (pihole, monitoring) *and* it's the
+self-hosted Teleport control plane that `teleport.homebytes.space`
+actually resolves to — see
 [external-services/README.md](external-services/README.md).
 
 ## Prerequisites

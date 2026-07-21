@@ -1,0 +1,63 @@
+# Reference copy of /etc/teleport.yaml on 192.168.0.158 (worker-01), captured 2026-07-09.
+# This is the self-hosted Teleport control plane (auth + proxy + ssh + app)
+# that teleport.homebytes.space actually resolves to. It's root-owned (0600)
+# on the host with no passwordless sudo, so update it manually there and
+# copy the new version back here — this file does not get deployed
+# automatically.
+#
+# No secrets are embedded here (join token is empty; this host IS the auth
+# server; TLS key/cert are separate files under /home/ubuntu/teleport-tls/,
+# not inlined below), so it's safe to keep in git as-is.
+
+version: v3
+teleport:
+  nodename: worker-01
+  auth_server: 127.0.0.1:3025
+  data_dir: /var/lib/teleport
+  join_params:
+    token_name: ""
+    method: token
+  log:
+    output: stderr
+    severity: INFO
+    format:
+      output: json
+  diag_addr: ""
+  #  proxy_server: teleport.homebytes.space:443
+  ca_pin: ""
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  cluster_name: teleport.homebytes.space
+  proxy_listener_mode: multiplex
+ssh_service:
+  enabled: "yes"
+proxy_service:
+  enabled: "yes"
+  web_listen_addr: 0.0.0.0:443
+  public_addr: teleport.homebytes.space:443
+  https_keypairs:
+    - key_file: /home/ubuntu/teleport-tls/teleport.homebytes.space.key
+      cert_file: /home/ubuntu/teleport-tls/teleport.homebytes.space.pem
+  https_keypairs_reload_interval: 0s
+  acme: {}
+app_service:
+  enabled: "yes"
+  debug_app: false
+  mcp_demo_server: false
+  apps:
+    - name: grafana
+      uri: http://localhost:3000/
+      public_addr: ""
+      #    insecure_skip_verify: false
+      #    use_any_proxy_public_addr: false
+    - name: pihole
+      uri: http://localhost/admin/login
+      public_addr: ""
+      insecure_skip_verify: false
+      use_any_proxy_public_addr: false
+    - name: localstack
+      uri: http://localhost:4566/
+      public_addr: ""
+      insecure_skip_verify: false
+      use_any_proxy_public_addr: false

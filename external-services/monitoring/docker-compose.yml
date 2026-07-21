@@ -24,7 +24,7 @@ services:
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     depends_on:
       sloth:
         condition: service_completed_successfully
@@ -57,7 +57,7 @@ services:
       - ./loki/data:/loki
     command: -config.file=/etc/loki/loki.yml
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
 
   grafana:
     image: grafana/grafana:10.4.2
@@ -81,7 +81,7 @@ services:
       - GF_SERVER_FORWARDED_HOST_HEADER=X-Forwarded-Host
       - GF_SECURITY_CSRF_TRUSTED_ORIGINS=grafana.teleport.homebytes.space
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
       - loki

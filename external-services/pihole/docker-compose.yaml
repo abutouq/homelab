@@ -11,8 +11,9 @@ services:
       # DNS Ports
       - "53:53/tcp"
       - "53:53/udp"
-      # Default HTTP Port
-      - "80:80/tcp"
+      # Default HTTP Port — loopback only; reach it via the Teleport app
+      # (pihole.teleport.homebytes.space), not directly on the LAN
+      - "127.0.0.1:80:80/tcp"
       # Default HTTPs Port. FTL will generate a self-signed certificate
 #      - "443:443/tcp"
       # Uncomment the below if using Pi-hole as your DHCP Server
@@ -70,7 +71,9 @@ services:
     environment:
       - TZ=Asia/Amman
       - PORT=20211
-      - PIHOLE_URL=http://192.168.0.158/admin/api.php
+      # 127.0.0.1, not the LAN IP — pihole's port 80 is now loopback-only,
+      # and netalertx shares the host's network namespace so this still works
+      - PIHOLE_URL=http://127.0.0.1/admin/api.php
       - PIHOLE_TOKEN=‘pinhole’
     network_mode: "host" 
     cap_add:
