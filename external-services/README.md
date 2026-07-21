@@ -52,7 +52,15 @@ LocalStack the hard way:
      -e service_name=<service> -e remote_dir=<remote_dir> --ask-become-pass
    ```
 4. **Needs remote/browser or CLI access?** Register it as a Teleport app
-   rather than opening its port to the LAN:
+   rather than opening its port to the LAN — add it to
+   [`../ansible/teleport_apps.yml`](../ansible/teleport_apps.yml) (the
+   source of truth for "what apps should exist") and then either
+   reconcile everything in that file in one pass:
+   ```
+   ansible-playbook -i ../ansible/external-hosts.ini ../ansible/manage_teleport_app.yml \
+     --ask-become-pass
+   ```
+   or, for a one-off without touching the file:
    ```
    ansible-playbook -i ../ansible/external-hosts.ini ../ansible/manage_teleport_app.yml \
      -e app_name=<service> -e app_uri=http://localhost:<port>/ --ask-become-pass

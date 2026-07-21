@@ -1,0 +1,18 @@
+# Source of truth for "what apps should be registered in Teleport's
+# app_service on 192.168.0.158". Add a new service here, then run
+# manage_teleport_app.yml with no -e app_name to reconcile all of them in
+# one pass — instead of having to remember and retype a one-off -e
+# app_name=<x> -e app_uri=<y> command per app.
+#
+# This mirrors app_service.apps in /etc/teleport.yaml on the host (see
+# external-services/teleport/teleport.yaml for the reference copy) — keep
+# the two in sync by hand if teleport.yaml is ever edited directly there.
+teleport_apps:
+  - name: grafana
+    uri: http://localhost:3000/
+  - name: pihole
+    uri: http://localhost/admin/login
+  - name: localstack
+    uri: http://localhost:4566/
+  - name: uptime-kuma
+    uri: http://localhost:3001/

@@ -36,7 +36,13 @@ a password.
 - `manage_teleport_app.yml` — idempotently add/update/remove a
   `app_service` entry on the self-hosted Teleport control plane
   (`external-services/teleport/teleport.yaml`), restarting `teleport.service`
-  only if it actually changed
+  only if it actually changed. Run with `-e app_name=<x> -e app_uri=<y>`
+  for a single ad-hoc add/update (or `-e app_state=absent` to remove); run
+  with no `-e app_name` at all to reconcile **every** app declared in
+  `teleport_apps.yml` in one pass
+- `teleport_apps.yml` — declarative list of every app that should be
+  registered in Teleport (name + uri); the source of truth the reconcile-all
+  mode above reads from — add new services here, not just via a one-off run
 - `files/manage_teleport_app.py` — the YAML-editing script the playbook above runs
 
 ## Inventory & configuration

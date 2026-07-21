@@ -3,14 +3,29 @@
 # standalone host's self-hosted Teleport control plane, then restart
 # teleport.service only if the config actually changed.
 #
-# Usage — register or update an app:
+# Two modes:
+#
+# 1. Single app — ad-hoc add/update/remove, same as before:
 #   ansible-playbook -i external-hosts.ini manage_teleport_app.yml \
 #     -e app_name=localstack -e app_uri=http://localhost:4566/ \
 #     --ask-become-pass
 #
-# Usage — remove an app:
 #   ansible-playbook -i external-hosts.ini manage_teleport_app.yml \
 #     -e app_name=localstack -e app_state=absent --ask-become-pass
+#
+# 2. Reconcile ALL apps from teleport_apps.yml (omit -e app_name) —
+#    upserts every app declared there. Useful after a host rebuild, a
+#    lost/reset teleport.yaml, or just to recreate the whole setup
+#    without hunting down each app's uri again:
+#   ansible-playbook -i external-hosts.ini manage_teleport_app.yml \
+#     --ask-become-pass
+#
+#    teleport_apps.yml is the source of truth for "what apps should
+#    exist" — add new services there, not just via a one-off -e app_name
+#    run, so this mode stays complete. Note this mode is upsert-only: it
+#    won't remove an app that's registered on the host but missing from
+#    the file (removal always goes through single-app mode above, to
+#    avoid accidentally deleting something added by hand).
 #
 # This always uses public_addr: "" (defaults to <name>.<proxy_domain>),
 # insecure_skip_verify: false, use_any_proxy_public_addr: false — matching
@@ -22,22 +37,32 @@
 # A restart briefly drops all active tsh/app sessions cluster-wide — this
 # host runs the whole control plane (auth + proxy), not just an agent.
 
-- name: Manage a Teleport app_service entry
+- name: Manage Teleport app_service entries
   hosts: standalone
   gather_facts: false
   remote_user: ubuntu
   become: true
 
+  vars_files:
+    - teleport_apps.yml
+
   vars:
     app_state: present
 
   tasks:
-    - name: Verify required vars are set
+    - name: Verify required vars are set (single-app mode)
+      ansible.builtin.assert:
+        that:
+          - app_state == 'absent' or app_uri is defined
+        fail_msg: "Pass -e app_uri=<uri> (not required for app_state=absent)"
+      when: app_name is defined
+
+    - name: Removal requires an explicit app_name
       ansible.builtin.assert:
         that:
           - app_name is defined
-          - app_state == 'absent' or app_uri is defined
-        fail_msg: "Pass -e app_name=<name> -e app_uri=<uri> (app_uri not required for app_state=absent)"
+        fail_msg: "app_state=absent requires -e app_name=<name> (removal isn't supported in reconcile-all mode)"
+      when: app_state == 'absent'
 
     - name: Back up current teleport.yaml (rolling, single backup)
       ansible.builtin.copy:
@@ -46,24 +71,48 @@
         remote_src: true
         mode: '0600'
 
-    - name: Upsert/remove the app entry
+    - name: Upsert/remove a single app entry
       ansible.builtin.script: "files/manage_teleport_app.py --name '{{ app_name }}' --uri '{{ app_uri | default('') }}' --state '{{ app_state }}'"
-      register: app_result
-      changed_when: "'CHANGED' in app_result.stdout"
+      register: single_app_result
+      changed_when: "'CHANGED' in single_app_result.stdout"
+      when: app_name is defined
+
+    - name: Reconcile all apps declared in teleport_apps.yml
+      ansible.builtin.script: "files/manage_teleport_app.py --name '{{ item.name }}' --uri '{{ item.uri }}' --state present"
+      register: sync_result
+      changed_when: "'CHANGED' in sync_result.stdout"
+      loop: "{{ teleport_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: app_name is not defined
+
+    - name: Determine whether anything changed
+      ansible.builtin.set_fact:
+        teleport_changed: >-
+          {{ (single_app_result is defined and single_app_result is changed)
+             or (sync_result is defined and sync_result.results is defined
+                 and sync_result.results | selectattr('changed') | list | length > 0) }}
 
     - name: Restart teleport to apply changes
       ansible.builtin.systemd:
         name: teleport
         state: restarted
-      when: app_result is changed
+      when: teleport_changed
 
-    - name: Confirm the app is registered
+    - name: Wait for the auth server to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 3025
+        timeout: 30
+      when: teleport_changed
+
+    - name: Confirm registered apps
       ansible.builtin.command: tctl apps ls
       register: apps_ls
       changed_when: false
-      when: app_result is changed
+      when: teleport_changed
 
     - name: Show registered apps
       ansible.builtin.debug:
         msg: "{{ apps_ls.stdout_lines }}"
-      when: app_result is changed
+      when: teleport_changed
