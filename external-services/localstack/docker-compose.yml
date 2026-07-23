@@ -15,7 +15,12 @@ services:
     networks:
       - localstack
     ports:
-      - "127.0.0.1:4566:4566"   # Edge port - all enabled AWS service APIs, incl. Secrets Manager; loopback only, same pattern as the other stacks
+      # Edge port - all enabled AWS service APIs, incl. Secrets Manager.
+      # Bound to the LAN interface, not loopback-only like the other stacks:
+      # in-cluster CronJobs (cert-manager/, helm/ase-market secrets-sync) need
+      # to reach this over the LAN to sync secrets — they have no Teleport
+      # identity to go through the app-access proxy instead.
+      - "192.168.0.158:4566:4566"
     environment:
       - SERVICES=secretsmanager
       - PERSISTENCE=1

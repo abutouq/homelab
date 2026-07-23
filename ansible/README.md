@@ -24,6 +24,11 @@ Or from the repo root: `ansible-playbook -i ansible/hosts.ini ansible/<playbook>
 ## Observability & access
 - `install_node_exporter.yml` — install and run Prometheus Node Exporter
 - `install_teleport.yml` — deploy the Teleport Kubernetes agent (Helm)
+- `install_cert_manager.yml` — deploy cert-manager (Helm) and the
+  `letsencrypt-prod` ClusterIssuer (Let's Encrypt via Cloudflare DNS-01); the
+  Cloudflare API token is synced in from LocalStack Secrets Manager by
+  `cert-manager/cloudflare-token-sync-cronjob.yaml`, not stored in git — see
+  [../cert-manager/](../cert-manager/)
 
 ## External (standalone) hosts
 Not part of the k8s cluster — see [../external-services/README.md](../external-services/README.md)

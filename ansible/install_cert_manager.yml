@@ -1,0 +1,159 @@
+---
+# Zero-touch cert-manager install + Let's Encrypt ClusterIssuer (Cloudflare DNS-01)
+#
+# Usage:
+#   ansible-playbook -i hosts.ini ansible/install_cert_manager.yml
+#
+# Prerequisites:
+#   - Cloudflare API token (Zone:DNS:Edit, scoped to the target zone) stored
+#     as a plain-string secret in the LocalStack Secrets Manager instance at
+#     192.168.0.158:4566, under the secret ID "cloudflare-api-token"
+#
+# What this playbook does:
+#   1. Installs Helm on the control plane if not already present
+#   2. Creates the 'cert-manager' namespace
+#   3. Adds the Jetstack Helm repo and installs cert-manager (CRDs included)
+#   4. Deploys the cloudflare-token-sync CronJob (cert-manager/cloudflare-token-sync-cronjob.yaml),
+#      which pulls the Cloudflare API token out of LocalStack Secrets Manager
+#      and materializes it as a native Secret in the cert-manager namespace
+#   5. Triggers that CronJob once immediately so the Secret exists right away,
+#      instead of waiting up to 15 minutes for the first scheduled run
+#   6. Applies the letsencrypt-prod ClusterIssuer (cert-manager/cluster-issuer.yaml)
+#   7. Verifies the ClusterIssuer reaches Ready
+#
+# After this runs, any Ingress annotated with
+# `cert-manager.io/cluster-issuer: letsencrypt-prod` gets its TLS Secret
+# issued and auto-renewed with no further manual steps.
+
+- name: Deploy cert-manager and Let's Encrypt ClusterIssuer
+  hosts: masters
+  gather_facts: false
+  remote_user: ubuntu
+  become: true
+
+  vars:
+    cert_manager_namespace: cert-manager
+    cert_manager_release_name: cert-manager
+    cert_manager_chart_version: "v1.16.2"
+    cert_manager_dir: "{{ playbook_dir }}/../cert-manager"
+    cloudflare_sync_remote: "/tmp/cloudflare-token-sync-cronjob.yaml"
+    cluster_issuer_remote: "/tmp/cluster-issuer.yaml"
+
+  tasks:
+
+    # -------------------------
+    # 1. Helm installation
+    # -------------------------
+
+    - name: Check if Helm is installed
+      command: helm version --short
+      register: helm_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install Helm via get-helm-3 script
+      shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      when: helm_check.rc != 0
+
+    # -------------------------
+    # 2. Namespace
+    # -------------------------
+
+    - name: Apply cert-manager namespace
+      become_user: ubuntu
+      shell: |
+        kubectl create namespace {{ cert_manager_namespace }} \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    # -------------------------
+    # 3. Jetstack Helm repo
+    # -------------------------
+
+    - name: Add Jetstack Helm repository
+      become_user: ubuntu
+      command: helm repo add jetstack https://charts.jetstack.io
+      register: repo_add
+      changed_when: "'already exists' not in repo_add.stdout"
+
+    - name: Update Helm repos
+      become_user: ubuntu
+      command: helm repo update
+
+    # -------------------------
+    # 4. Deploy cert-manager
+    # -------------------------
+
+    - name: Install cert-manager chart (CRDs included)
+      become_user: ubuntu
+      command: >
+        helm upgrade --install {{ cert_manager_release_name }} jetstack/cert-manager
+        --namespace {{ cert_manager_namespace }}
+        --version {{ cert_manager_chart_version }}
+        --set crds.enabled=true
+        --wait --timeout 3m
+
+    # -------------------------
+    # 5. Cloudflare token sync CronJob
+    # -------------------------
+
+    - name: Copy cloudflare-token-sync-cronjob.yaml to remote host
+      copy:
+        src: "{{ cert_manager_dir }}/cloudflare-token-sync-cronjob.yaml"
+        dest: "{{ cloudflare_sync_remote }}"
+        mode: '0644'
+
+    - name: Apply cloudflare-token-sync CronJob
+      become_user: ubuntu
+      command: kubectl apply -f {{ cloudflare_sync_remote }}
+
+    - name: Trigger an immediate run of cloudflare-token-sync
+      become_user: ubuntu
+      shell: |
+        kubectl create job cloudflare-token-sync-manual-$(date +%s) \
+          --from=cronjob/cloudflare-token-sync -n {{ cert_manager_namespace }}
+
+    - name: Wait for cloudflare-api-token Secret to appear
+      become_user: ubuntu
+      command: kubectl get secret cloudflare-api-token -n {{ cert_manager_namespace }}
+      register: secret_check
+      until: secret_check.rc == 0
+      retries: 10
+      delay: 5
+      changed_when: false
+
+    # -------------------------
+    # 6. ClusterIssuer
+    # -------------------------
+
+    - name: Copy cluster-issuer.yaml to remote host
+      copy:
+        src: "{{ cert_manager_dir }}/cluster-issuer.yaml"
+        dest: "{{ cluster_issuer_remote }}"
+        mode: '0644'
+
+    - name: Apply letsencrypt-prod ClusterIssuer
+      become_user: ubuntu
+      command: kubectl apply -f {{ cluster_issuer_remote }}
+
+    # -------------------------
+    # 7. Verify
+    # -------------------------
+
+    - name: Wait for ClusterIssuer to become Ready
+      become_user: ubuntu
+      command: >
+        kubectl wait clusterissuer letsencrypt-prod
+        --for=condition=Ready --timeout=120s
+      register: issuer_ready
+      changed_when: false
+
+    - name: Show ClusterIssuer status
+      become_user: ubuntu
+      command: kubectl get clusterissuer letsencrypt-prod -o wide
+      register: issuer_status
+      changed_when: false
+
+    - name: Print ClusterIssuer status
+      debug:
+        msg: "{{ issuer_status.stdout_lines }}"

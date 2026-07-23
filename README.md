@@ -39,6 +39,7 @@ Inventory groups (`ansible/hosts.ini`):
 | Observability | Prometheus, Grafana, Node Exporter | |
 | Remote access | Teleport | In-cluster agent via Helm (`teleport/`) dials out to the self-hosted control plane on `192.168.0.158` (`external-services/192.168.0.158.md`) |
 | RBAC | Custom roles/bindings | `RBAC/` |
+| TLS certificates | cert-manager | Automated Let's Encrypt issuance/renewal via Cloudflare DNS-01 (`cert-manager/`, `ansible/install_cert_manager.yml`); Cloudflare API token synced from LocalStack Secrets Manager, never stored in git |
 
 ## Workloads
 
