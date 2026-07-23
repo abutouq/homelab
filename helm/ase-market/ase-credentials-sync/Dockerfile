@@ -6,7 +6,7 @@ RUN apk add --no-cache bash curl ca-certificates jq python3 py3-pip \
        -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl
 
-COPY sync-secret.sh /usr/local/bin/sync-secret.sh
-RUN chmod +x /usr/local/bin/sync-secret.sh
+COPY sync-ase-credentials.sh /usr/local/bin/sync-ase-credentials.sh
+RUN chmod +x /usr/local/bin/sync-ase-credentials.sh
 
-ENTRYPOINT ["/usr/local/bin/sync-secret.sh"]
+ENTRYPOINT ["/usr/local/bin/sync-ase-credentials.sh"]

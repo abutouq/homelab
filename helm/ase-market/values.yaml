@@ -179,10 +179,23 @@ secretsSync:
     repository: aabutouq/secrets-sync
     tag: v1.0.0
   schedule: "*/15 * * * *"
-  localstackEndpoint: "http://192.168.0.158:4566"
+  localstackEndpoint: "http://secrets-manager.homebytes.space:4566"
   secretId: "ase-market/ase-credentials"
   # targetSecretName defaults to "<fullname>-ase-credentials" when empty
   targetSecretName: ""
+
+registrySecretSync:
+  # Keeps the "aabutouq-registry-secret" Secret (referenced by
+  # imagePullSecrets above) in sync with a .dockerconfigjson blob stored in
+  # LocalStack Secrets Manager (see ../registry-sync/).
+  enabled: true
+  image:
+    repository: aabutouq/registry-secret-sync
+    tag: v1.0.0
+  schedule: "*/15 * * * *"
+  localstackEndpoint: "http://secrets-manager.homebytes.space:4566"
+  secretId: "ase-market/docker-registry"
+  targetSecretName: "aabutouq-registry-secret"
 
 postgresql:
   enabled: true
