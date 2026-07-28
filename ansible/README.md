@@ -49,6 +49,10 @@ a password.
   registered in Teleport (name + uri); the source of truth the reconcile-all
   mode above reads from — add new services here, not just via a one-off run
 - `files/manage_teleport_app.py` — the YAML-editing script the playbook above runs
+- `install_awscli.yml` — install the AWS CLI (via snap) on a standalone
+  host and sanity-check it runs (`aws sts get-caller-identity` with
+  placeholder credentials — the call is expected to fail auth, it just
+  confirms the binary works)
 
 ## Inventory & configuration
 - `hosts.ini` — `masters` / `workers` groups, with `homelab` (all nodes) and

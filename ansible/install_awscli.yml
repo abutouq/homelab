@@ -1,0 +1,24 @@
+- name: Install AWS CLI
+  hosts: all
+  remote_user: ubuntu
+  become: true
+
+  tasks:
+    - name: Install AWS CLI
+      community.general.snap:
+        name: aws-cli
+        classic: true
+
+    - name: Test AWS CLI with test credentials
+      command: "aws sts get-caller-identity"
+      environment:
+        AWS_ACCESS_KEY_ID: test
+        AWS_SECRET_ACCESS_KEY: test
+        AWS_DEFAULT_REGION: us-east-1
+      register: aws_test
+      failed_when: false
+      changed_when: false
+
+    - name: Show AWS CLI test output
+      debug:
+        var: aws_test.stdout_lines
