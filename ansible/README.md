@@ -52,7 +52,11 @@ a password.
 - `install_awscli.yml` — install the AWS CLI (via snap) on a standalone
   host and sanity-check it runs (`aws sts get-caller-identity` with
   placeholder credentials — the call is expected to fail auth, it just
-  confirms the binary works)
+  confirms the binary works); also installs Certbot plus the
+  `certbot-dns-cloudflare` plugin (`snap set certbot
+  trust-plugin-with-root=ok` first, or the plugin's flags come back as
+  "unrecognized arguments"), used by
+  [`external-services/teleport/renew-teleport-cert.sh`](../external-services/teleport/renew-teleport-cert.sh)
 
 ## Inventory & configuration
 - `hosts.ini` — `masters` / `workers` groups, with `homelab` (all nodes) and

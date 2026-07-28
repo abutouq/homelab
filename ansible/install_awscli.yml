@@ -5,9 +5,9 @@
 
   tasks:
     - name: Install AWS CLI
-      community.general.snap:
-        name: aws-cli
-        classic: true
+      command: snap install aws-cli --classic
+      args:
+        creates: /snap/bin/aws
 
     - name: Test AWS CLI with test credentials
       command: "aws sts get-caller-identity"
@@ -22,3 +22,17 @@
     - name: Show AWS CLI test output
       debug:
         var: aws_test.stdout_lines
+
+    - name: Install Certbot
+      command: snap install certbot --classic
+      args:
+        creates: /snap/bin/certbot
+
+    - name: Allow Certbot plugins to run as root
+      command: snap set certbot trust-plugin-with-root=ok
+      changed_when: false
+
+    - name: Install Certbot Cloudflare DNS plugin
+      command: snap install certbot-dns-cloudflare
+      args:
+        creates: /snap/bin/certbot-dns-cloudflare
