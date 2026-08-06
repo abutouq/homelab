@@ -1,13 +1,9 @@
-# ArgoCD Application: SLO PrometheusRule CRDs
+# ArgoCD Application: kids-app
 #
-# Applies slo/generated/ase-market-prometheusrule.yaml to the monitoring namespace.
-# These rules are consumed by Prometheus Operator if/when it is deployed in the cluster.
-#
-# The external Docker Compose Prometheus on worker-01 (.158) reads the raw rules file
-# directly from slo/generated/ase-market.rules.yaml — see RUNBOOK.md#slo-rules-sync.
+# Deploys the kids-app Helm chart (helm/kids-app) to the kids-app namespace.
 #
 # Apply this Application once:
-#   kubectl apply -f argocd/application-slo.yaml
+#   kubectl apply -f argocd/kids-app.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -18,7 +14,7 @@ spec:
   source:
     repoURL: https://github.com/abutouq/homelab.git
     targetRevision: main
-    path: slo/generated
+    path: helm/kids-app
   destination:
     server: https://kubernetes.default.svc
     namespace: kids-app
