@@ -1,0 +1,120 @@
+{{- if .Values.oauthTokenSync.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "kids-app.fullname" . }}-oauth-token-sync
+  labels:
+    {{- include "kids-app.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kids-app.fullname" . }}-oauth-token-sync
+  labels:
+    {{- include "kids-app.labels" . | nindent 4 }}
+rules:
+  # Scoped to exactly the one secret and one deployment this job touches —
+  # not a blanket grant on all secrets in the namespace.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["kids-app-secrets"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["kids-app"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kids-app.fullname" . }}-oauth-token-sync
+  labels:
+    {{- include "kids-app.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kids-app.fullname" . }}-oauth-token-sync
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kids-app.fullname" . }}-oauth-token-sync
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "kids-app.fullname" . }}-oauth-token-sync
+  labels:
+    {{- include "kids-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oauth-token-sync
+spec:
+  schedule: {{ .Values.oauthTokenSync.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            {{- include "kids-app.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: oauth-token-sync
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "kids-app.fullname" . }}-oauth-token-sync
+          # Same "pull from LocalStack Secrets Manager, apply into a k8s
+          # Secret" pattern as registry-secret-sync, just not restricted to
+          # dockerconfigjson: split across two stock images (no custom
+          # image to build/publish) sharing an emptyDir.
+          initContainers:
+            - name: fetch-token
+              image: amazon/aws-cli:2.17.62
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  value: "test"
+                - name: AWS_SECRET_ACCESS_KEY
+                  value: "test"
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  aws --endpoint-url={{ .Values.oauthTokenSync.localstackEndpoint }} --region us-east-1 \
+                    secretsmanager get-secret-value --secret-id {{ .Values.oauthTokenSync.secretId | quote }} \
+                    --query SecretString --output text > /shared/token
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          containers:
+            - name: sync-secret
+              image: bitnami/kubectl:1.30
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  new_token="$(cat /shared/token)"
+                  current_hash="$(kubectl -n {{ .Release.Namespace }} get secret kids-app-secrets -o jsonpath='{.data.CLAUDE_CODE_OAUTH_TOKEN}' 2>/dev/null | base64 -d | sha256sum | cut -d' ' -f1 || true)"
+                  new_hash="$(printf '%s' "$new_token" | sha256sum | cut -d' ' -f1)"
+                  if [ "$current_hash" = "$new_hash" ]; then
+                    echo "token unchanged, nothing to do"
+                    exit 0
+                  fi
+                  kubectl -n {{ .Release.Namespace }} create secret generic kids-app-secrets \
+                    --from-literal=CLAUDE_CODE_OAUTH_TOKEN="$new_token" \
+                    --dry-run=client -o yaml | kubectl -n {{ .Release.Namespace }} apply -f -
+                  kubectl -n {{ .Release.Namespace }} rollout restart deployment/kids-app
+                  echo "synced new token, restarted deployment"
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+          volumes:
+            - name: shared
+              emptyDir: {}
+{{- end }}
