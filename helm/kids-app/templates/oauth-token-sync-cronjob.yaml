@@ -87,7 +87,7 @@ spec:
                   mountPath: /shared
           containers:
             - name: sync-secret
-              image: bitnami/kubectl:1.30
+              image: rancher/kubectl:v1.30.0
               command: ["sh", "-c"]
               args:
                 - |
