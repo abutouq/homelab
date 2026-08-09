@@ -11,7 +11,7 @@ image:
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v1.0.9"
+  tag: "v1.0.10"
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: [
@@ -187,3 +187,19 @@ registrySecretSync:
   localstackEndpoint: "http://secrets-manager.homebytes.space:4566"
   secretId: "gitlab_cd_token"
   targetSecretName: "gitlab-registry-secret"
+
+oauthTokenSync:
+  # Keeps kids-app-secrets' CLAUDE_CODE_OAUTH_TOKEN key in sync with a plain
+  # string secret in LocalStack Secrets Manager, and restarts the deployment
+  # when it changes. To rotate: run `claude setup-token` on a machine with
+  # an active Claude subscription, then:
+  #   aws --endpoint-url=http://secrets-manager.homebytes.space:4566 --region us-east-1 \
+  #     secretsmanager put-secret-value --secret-id kids-app/claude_oauth_token \
+  #     --secret-string 'paste-token-here'
+  # (first time: use create-secret instead of put-secret-value). Picked up
+  # automatically within one schedule interval — no cluster access needed
+  # to rotate it, and no CI credential holds standing cluster access either.
+  enabled: true
+  schedule: "*/15 * * * *"
+  localstackEndpoint: "http://secrets-manager.homebytes.space:4566"
+  secretId: "kids-app/claude_oauth_token"
