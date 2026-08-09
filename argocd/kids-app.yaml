@@ -9,6 +9,14 @@ kind: Application
 metadata:
   name: kids-app
   namespace: argocd
+  annotations:
+    argocd-image-updater.argocd.argoproj.io/image-list: kids-app=registry.gitlab.com/abdulah.abutouq/kids-app:^1.0
+    argocd-image-updater.argocd.argoproj.io/kids-app.update-strategy: semver
+    argocd-image-updater.argocd.argoproj.io/kids-app.helm.image-name: image.repository
+    argocd-image-updater.argocd.argoproj.io/kids-app.helm.image-tag: image.tag
+    argocd-image-updater.argocd.argoproj.io/kids-app.pull-secret: pullsecret:kids-app/gitlab-registry-secret
+    argocd-image-updater.argocd.argoproj.io/write-back-method: git
+    argocd-image-updater.argocd.argoproj.io/write-back-target: helmvalues:./values.yaml
 spec:
   project: default
   source:
