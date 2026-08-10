@@ -16,3 +16,5 @@ teleport_apps:
     uri: http://localhost:4566/
   - name: uptime-kuma
     uri: http://localhost:3001/
+  - name: immich
+    uri: http://localhost:2283/
