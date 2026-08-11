@@ -23,6 +23,11 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
+      # Needed for the TSDB delete_series/clean_tombstones admin endpoints —
+      # e.g. purging duplicate series left behind by a stale/replaced Sloth
+      # rules file. Loopback-only port already restricts this to local/SSH
+      # access; consider removing again once no longer needed.
+      - "--web.enable-admin-api"
     ports:
       - "127.0.0.1:9090:9090"
     depends_on:
