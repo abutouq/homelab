@@ -175,6 +175,18 @@ tolerations: []
 
 affinity: {}
 
+# Persistent storage mounted into the container at persistence.mountPath.
+# Backed by a PersistentVolumeClaim (dynamically provisioned via storageClassName,
+# defaulting to the cluster's default StorageClass when left blank).
+persistence:
+  enabled: true
+  mountPath: /app/data
+  accessMode: ReadWriteOnce
+  size: 200Mi
+  storageClassName: ""
+  # Use an existing PVC instead of creating one.
+  existingClaim: ""
+
 registrySecretSync:
   # Keeps the "gitlab-registry-secret" Secret (referenced by imagePullSecrets
   # above) in sync with a .dockerconfigjson blob stored in LocalStack Secrets
