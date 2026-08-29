@@ -6,31 +6,18 @@ networks:
 
 services:
   localstack:
-    # Pinned, not :latest — newer LocalStack releases (confirmed with 2026.6.2)
-    # refuse to start at all without a paid LOCALSTACK_AUTH_TOKEN, even for
-    # community-tier services like Secrets Manager. 3.0 is free/unauthenticated.
-    image: localstack/localstack:3.0
+    image: gresau/localstack-persist:4.14.0   # was localstack/localstack:3.0
     container_name: localstack
     restart: unless-stopped
     networks:
       - localstack
     ports:
-      # Edge port - all enabled AWS service APIs, incl. Secrets Manager.
-      # Bound to the LAN interface, not loopback-only like the other stacks:
-      # in-cluster CronJobs (cert-manager/, helm/ase-market secrets-sync) need
-      # to reach this over the LAN to sync secrets — they have no Teleport
-      # identity to go through the app-access proxy instead.
       - "192.168.0.158:4566:4566"
     environment:
       - SERVICES=secretsmanager
-      - PERSISTENCE=1
+      - PERSIST_DEFAULT=1        # was PERSISTENCE=1 (that var is ignored by this image)
       - DEBUG=0
-      # LOCALSTACK_HOST alone does NOT fix CORS (it's only for endpoint URL
-      # construction) — EXTRA_CORS_ALLOWED_ORIGINS is the actual setting
-      # (see localstack/config.py). Without it, every request proxied
-      # through the Teleport app gets 403 "Blocked CORS request from
-      # forbidden origin", since LocalStack only trusts localhost by default.
       - LOCALSTACK_HOST=localstack.teleport.homebytes.space
       - EXTRA_CORS_ALLOWED_ORIGINS=https://localstack.teleport.homebytes.space
     volumes:
-      - ./data:/var/lib/localstack
+      - ./data:/persisted-data   # was /var/lib/localstack — different mount path for this image

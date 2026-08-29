@@ -12,19 +12,22 @@ unused `.notworking.yml`) is what this directory replaces.
 
 | Host | IP | Runs | Doc |
 |---|---|---|---|
-| worker-01 | `192.168.0.158` | pihole, monitoring, localstack, **Teleport control plane** | [192.168.0.158.md](192.168.0.158.md) |
+| worker-01 | `192.168.0.158` | pihole, monitoring, localstack, uptime-kuma, immich, **Teleport control plane** | [192.168.0.158.md](192.168.0.158.md) |
 
 ## Deploying a change to an existing stack
 
 ```
 ansible-playbook -i ../ansible/external-hosts.ini ../ansible/deploy_external_service.yml \
-  -e service_name=<stack> -e remote_dir=<stack-dir> --ask-become-pass
+  -e service_name=<stack> --ask-become-pass
 ```
 
-`<stack-dir>` for each stack is listed in the per-host doc. (Manual
-`scp`/`ssh` still works if you'd rather not deal with Ansible for a
-one-off change — the playbook just removes the root-owned-directory
-two-step and the copy-paste.)
+Don't pass `-e remote_dir=...` unless a stack lives somewhere other than
+the default `/home/ubuntu/<stack>` — typing it by hand each time is exactly
+how LocalStack's persisted secrets got silently wiped once already (a
+redeploy landed on a different path than the one holding its `./data`).
+See the playbook header for details. (Manual `scp`/`ssh` still works if
+you'd rather not deal with Ansible for a one-off change — the playbook
+just removes the root-owned-directory two-step and the copy-paste.)
 
 ## Adding a brand-new service
 
