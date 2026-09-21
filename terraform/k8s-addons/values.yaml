@@ -1,0 +1,19 @@
+global:
+  domain: argocd.teleport.homebytes.space
+
+server:
+  replicas: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 2
+
+# Disable Dex if using an external OIDC provider (Okta, Keycloak, Azure AD)
+dex:
+  enabled: false
