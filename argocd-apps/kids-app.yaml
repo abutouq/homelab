@@ -1,0 +1,34 @@
+# ArgoCD Application: kids-app
+#
+# Deploys the kids-app Helm chart (helm/kids-app) to the kids-app namespace.
+#
+# Apply this Application once:
+#   kubectl apply -f argocd/kids-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kids-app
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argocd.argoproj.io/image-list: kids-app=registry.gitlab.com/abdulah.abutouq/kids-app:^1.0
+    argocd-image-updater.argocd.argoproj.io/kids-app.update-strategy: semver
+    argocd-image-updater.argocd.argoproj.io/kids-app.helm.image-name: image.repository
+    argocd-image-updater.argocd.argoproj.io/kids-app.helm.image-tag: image.tag
+    argocd-image-updater.argocd.argoproj.io/kids-app.pull-secret: pullsecret:kids-app/gitlab-registry-secret
+    argocd-image-updater.argocd.argoproj.io/write-back-method: git
+    argocd-image-updater.argocd.argoproj.io/write-back-target: helmvalues:./values.yaml
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abutouq/homelab.git
+    targetRevision: main
+    path: helm/kids-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kids-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
