@@ -155,25 +155,3 @@
         enabled: yes
         state: started
 
-    # -------------------------
-    # kubectl config (CONTROL PLANE ONLY)
-    # -------------------------
-
-    - name: Create .kube directory for user
-      file:
-        path: "{{ ansible_facts['env']['HOME'] }}/.kube"
-        state: directory
-        mode: '0755'
-        owner: "{{ ansible_facts['user_id'] }}"
-        group: "{{ ansible_facts['user_gid'] }}"
-      when: "'control_plane' in group_names"
-
-    - name: Copy admin.conf to user kube config
-      copy:
-        src: /etc/kubernetes/admin.conf
-        dest: "{{ ansible_facts['env']['HOME'] }}/.kube/config"
-        remote_src: yes
-        owner: "{{ ansible_facts['user_id'] }}"
-        group: "{{ ansible_facts['user_gid'] }}"
-        mode: '0644'
-      when: "'control_plane' in group_names"
