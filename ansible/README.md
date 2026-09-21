@@ -29,6 +29,14 @@ Or from the repo root: `ansible-playbook -i ansible/hosts.ini ansible/<playbook>
   Cloudflare API token is synced in from LocalStack Secrets Manager by
   `cert-manager/cloudflare-token-sync-cronjob.yaml`, not stored in git — see
   [../cert-manager/](../cert-manager/)
+- `install_argocd_image_updater.yml` — zero-touch bootstrap of
+  argocd-image-updater: scoped ArgoCD account + RBAC, a fresh API token
+  (pushed to LocalStack), the `argocd-image-updater-secret` /
+  `homelab-repo-creds` Secrets it needs, and the
+  `argocd-image-updater[-secret-sync]` Applications. Safe to re-run (e.g.
+  after a cluster rebuild). Its only prerequisite is a GitHub PAT seeded into
+  LocalStack once ever (not once per cluster) — see the playbook header and
+  [../argocd-image-updater/](../argocd-image-updater/)
 
 ## External (standalone) hosts
 Not part of the k8s cluster — see [../external-services/README.md](../external-services/README.md)
@@ -57,6 +65,13 @@ a password.
   trust-plugin-with-root=ok` first, or the plugin's flags come back as
   "unrecognized arguments"), used by
   [`external-services/teleport/renew-teleport-cert.sh`](../external-services/teleport/renew-teleport-cert.sh)
+- `install_vault.yml` — install HashiCorp Vault (native apt package +
+  systemd, UI enabled) on a standalone host; listener is bound to
+  `127.0.0.1:8200` only, proxied via Teleport's `app_service`
+  (`teleport_apps.yml`'s `vault` entry) rather than exposed on the LAN.
+  Does **not** run `vault operator init` — that's a one-time manual step,
+  see the playbook header
+- `templates/vault.hcl.j2` — the Vault config the playbook above deploys
 
 ## Inventory & configuration
 - `hosts.ini` — `masters` / `workers` groups, with `homelab` (all nodes) and
