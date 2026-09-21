@@ -10,6 +10,10 @@
 teleport_apps:
   - name: grafana
     uri: http://localhost:3000/
+  - name: prometheus
+    uri: http://localhost:9090/
+  - name: alertmanager
+    uri: http://localhost:9093/
   - name: pihole
     uri: http://localhost/admin/login
   - name: localstack
@@ -18,3 +22,11 @@ teleport_apps:
     uri: http://localhost:3001/
   - name: immich
     uri: http://localhost:2283/
+  - name: argocd
+    # Not on this host — lives in the new Proxmox-provisioned k8s cluster,
+    # exposed via a pinned MetalLB LoadBalancer IP (terraform/k8s-addons/argocd.tf).
+    uri: http://192.168.0.31/
+  - name: vault
+    # Native systemd install on this host (ansible/install_vault.yml), same
+    # as everything else above — listener is loopback-only, not the LAN IP.
+    uri: http://localhost:8200/
