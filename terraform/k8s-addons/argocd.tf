@@ -27,7 +27,7 @@ resource "helm_release" "argocd" {
     },
     {
       name  = "server.service.annotations.metallb\\.io/loadBalancerIPs"
-      value = "192.168.0.30"
+      value = "192.168.0.31" # .30 is already claimed by ingress-nginx-controller (auto-assigned)
     },
     {
       name  = "server.extraArgs[0]"
