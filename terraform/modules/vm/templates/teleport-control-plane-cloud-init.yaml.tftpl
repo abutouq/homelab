@@ -1,0 +1,53 @@
+#cloud-config
+users:
+  - name: ${username}
+    groups: sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+
+write_files:
+  - path: /etc/teleport.yaml
+    owner: root:root
+    permissions: '0600'
+    content: |
+      version: v3
+      teleport:
+        nodename: ${nodename}
+        auth_server: 127.0.0.1:3025
+        data_dir: /var/lib/teleport
+        join_params:
+          token_name: ""
+          method: token
+        log:
+          output: stderr
+          severity: INFO
+          format:
+            output: json
+        diag_addr: ""
+        ca_pin: ""
+      auth_service:
+        enabled: "yes"
+        listen_addr: 0.0.0.0:3025
+        cluster_name: ${cluster_name}
+        proxy_listener_mode: multiplex
+      ssh_service:
+        enabled: "yes"
+      proxy_service:
+        enabled: "yes"
+        web_listen_addr: 0.0.0.0:443
+        public_addr: ${cluster_name}:443
+      app_service:
+        enabled: "no"
+
+runcmd:
+  - mkdir -p /etc/apt/keyrings
+  - curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc
+  - echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18" > /etc/apt/sources.list.d/teleport.list
+  - apt-get update -qq
+  - apt-get install -y teleport
+  - systemctl enable teleport
+  - systemctl restart teleport
