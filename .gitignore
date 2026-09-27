@@ -8,3 +8,11 @@ freqtrade/freqtrade-secrets.yaml
 StatefulSet/01-secret.yaml
 SSL/*
 .DS_Store
+terraform/**/.terraform/
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/*.tfvars
+terraform/**/crash.log
+ansible/proxmox-k8s-cluster-hosts.ini
+terraform/vault-cluster.json
+terraform/vault-cluster.json
