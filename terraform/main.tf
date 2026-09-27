@@ -78,3 +78,11 @@ module "tf_vault_01" {
   vault_role           = "server"
   cloudflare_api_token = var.CLOUDFLARE_API_TOKEN
 }
+
+resource "cloudflare_dns_record" "vault" {
+  zone_id = var.CLOUDFLARE_ZONE_ID
+  name    = "Vault"
+  type    = "A"
+  content = split("/", module.tf_vault_01.ip_address)[0]
+  ttl     = 300
+}

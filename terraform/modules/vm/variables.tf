@@ -36,7 +36,7 @@ variable "teleport_cluster_name" {
 variable "vault_role" {
   type        = string
   default     = "none"
-  description = "Vault role to configure via cloud-init on first boot: \"none\" (nothing installed) or \"server\" (single-node raft Vault server with a Let's Encrypt cert, reachable directly on the LAN at https://<vault_domain>:8200). Init/unseal stays manual."
+  description = "Vault role to configure via cloud-init on first boot: \"none\" (nothing installed) or \"server\" (single-node raft Vault server with a Let's Encrypt cert, reachable directly on the LAN at https://<vault_domain> (port 443)). Init/unseal stays manual."
   validation {
     condition     = contains(["none", "server"], var.vault_role)
     error_message = "vault_role must be one of: none, server."

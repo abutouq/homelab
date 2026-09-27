@@ -40,14 +40,24 @@ write_files:
       }
 
       listener "tcp" {
-        address         = "0.0.0.0:8200"
+        address         = "0.0.0.0:443"
         cluster_address = "0.0.0.0:8201"
         tls_cert_file   = "/opt/vault/tls/fullchain.pem"
         tls_key_file    = "/opt/vault/tls/privkey.pem"
       }
 
-      api_addr     = "https://${vault_domain}:8200"
+      api_addr     = "https://${vault_domain}"
       cluster_addr = "https://${vault_ip}:8201"
+
+  # Vault runs as the unprivileged vault user, so binding 443 needs
+  # CAP_NET_BIND_SERVICE on top of the package unit's CAP_IPC_LOCK.
+  - path: /etc/systemd/system/vault.service.d/bind-443.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Service]
+      CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK CAP_NET_BIND_SERVICE
+      AmbientCapabilities=CAP_IPC_LOCK CAP_NET_BIND_SERVICE
 
   # Vault runs as the vault user and can't read /etc/letsencrypt/live, so each
   # issuance/renewal copies the cert into Vault's own dir and SIGHUPs Vault,
@@ -74,6 +84,7 @@ runcmd:
   # certbot only runs renewal-hooks/deploy on renew, so run it once for the first cert
   - /etc/letsencrypt/renewal-hooks/deploy/vault.sh
   - systemctl enable --now certbot.timer
+  - systemctl daemon-reload
   - systemctl enable --now vault
   # Deliberately NOT automated: `vault operator init`. It generates the unseal
   # keys and root token, which belong in a password manager, not on this disk.
