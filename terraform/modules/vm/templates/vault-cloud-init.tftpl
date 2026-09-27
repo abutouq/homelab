@@ -1,0 +1,79 @@
+#cloud-config
+users:
+  - name: ${username}
+    groups: sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+
+packages:
+  - gpg
+  - curl
+  - certbot
+  - python3-certbot-dns-cloudflare
+
+# Staged outside /etc/vault.d: the vault package owns that dir and its default
+# vault.hcl, and the vault user doesn't exist until the package is installed.
+write_files:
+  - path: /etc/letsencrypt/cloudflare.ini
+    owner: root:root
+    permissions: '0600'
+    content: |
+      dns_cloudflare_api_token = ${cloudflare_api_token}
+
+  - path: /root/vault-bootstrap/vault.hcl
+    owner: root:root
+    permissions: '0600'
+    content: |
+      ui = true
+
+      # Recommended with integrated storage (raft mmaps its data files); the
+      # cloud image has no swap, so secrets still never hit disk.
+      disable_mlock = true
+
+      storage "raft" {
+        path    = "/opt/vault/data"
+        node_id = "${nodename}"
+      }
+
+      listener "tcp" {
+        address         = "0.0.0.0:8200"
+        cluster_address = "0.0.0.0:8201"
+        tls_cert_file   = "/opt/vault/tls/fullchain.pem"
+        tls_key_file    = "/opt/vault/tls/privkey.pem"
+      }
+
+      api_addr     = "https://${vault_domain}:8200"
+      cluster_addr = "https://${vault_ip}:8201"
+
+  # Vault runs as the vault user and can't read /etc/letsencrypt/live, so each
+  # issuance/renewal copies the cert into Vault's own dir and SIGHUPs Vault,
+  # which reloads listener certs without a restart (and without resealing).
+  - path: /etc/letsencrypt/renewal-hooks/deploy/vault.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      live=/etc/letsencrypt/live/${vault_domain}
+      install -o vault -g vault -m 0644 "$live/fullchain.pem" /opt/vault/tls/fullchain.pem
+      install -o vault -g vault -m 0600 "$live/privkey.pem"   /opt/vault/tls/privkey.pem
+      systemctl kill -s HUP vault.service || true
+
+runcmd:
+  - curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" > /etc/apt/sources.list.d/hashicorp.list
+  - apt-get update -qq
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y vault
+  - install -d -o vault -g vault -m 0750 /opt/vault/data /opt/vault/tls
+  - install -o vault -g vault -m 0640 /root/vault-bootstrap/vault.hcl /etc/vault.d/vault.hcl
+  - certbot certonly --non-interactive --agree-tos --register-unsafely-without-email --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --dns-cloudflare-propagation-seconds 30 --cert-name ${vault_domain} -d ${vault_domain} %{ if acme_staging }--staging%{ endif }
+  # certbot only runs renewal-hooks/deploy on renew, so run it once for the first cert
+  - /etc/letsencrypt/renewal-hooks/deploy/vault.sh
+  - systemctl enable --now certbot.timer
+  - systemctl enable --now vault
+  # Deliberately NOT automated: `vault operator init`. It generates the unseal
+  # keys and root token, which belong in a password manager, not on this disk.

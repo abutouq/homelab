@@ -9,7 +9,17 @@ users:
 
 package_update: true
 
+packages:
+  - certbot
+  - python3-certbot-dns-cloudflare
+
 write_files:
+  - path: /etc/letsencrypt/cloudflare.ini
+    owner: root:root
+    permissions: '0600'
+    content: |
+      dns_cloudflare_api_token = ${cloudflare_api_token}
+
   - path: /etc/teleport.yaml
     owner: root:root
     permissions: '0600'
@@ -40,6 +50,12 @@ write_files:
         enabled: "yes"
         web_listen_addr: 0.0.0.0:443
         public_addr: ${cluster_name}:443
+        https_keypairs:
+          - key_file: /etc/letsencrypt/live/${cluster_name}/privkey.pem
+            cert_file: /etc/letsencrypt/live/${cluster_name}/fullchain.pem
+        # Teleport re-reads the keypair on this interval, so certbot renewals
+        # are picked up without a restart or a deploy hook.
+        https_keypairs_reload_interval: 1h
       app_service:
         enabled: "no"
 
@@ -49,5 +65,8 @@ runcmd:
   - echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18" > /etc/apt/sources.list.d/teleport.list
   - apt-get update -qq
   - apt-get install -y teleport
+  # The cert must exist before Teleport starts, or the proxy fails to load its keypair.
+  - certbot certonly --non-interactive --agree-tos --register-unsafely-without-email --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --dns-cloudflare-propagation-seconds 30 --cert-name ${cluster_name} -d ${cluster_name} -d '*.${cluster_name}' %{ if acme_staging }--staging%{ endif }
+  - systemctl enable --now certbot.timer
   - systemctl enable teleport
   - systemctl restart teleport

@@ -7,9 +7,9 @@ Two independent Terraform root modules, run in sequence with Ansible steps in be
 
 ## Prerequisites
 
-- Proxmox cluster `prx-cluster-01`: node `pve` (192.168.0.2), node `pve-02` (192.168.0.200).
-- A least-privilege Proxmox API token for Terraform: user `terraform@pve`, role `TerraformProv` (VM lifecycle + datastore privileges), ACL granted at `/`. Never use `root@pam`'s own credentials here.
-- **Cloud-init Ubuntu 24.04 templates, built manually — NOT Terraform-managed.** VMID `9000` on `pve`, VMID `9100` on `pve-02`. Terraform only clones these; it never creates them. See [Gotchas](#gotchas-learned-the-hard-way) — these have been accidentally deleted once already, which breaks every `module` block until rebuilt.
+- Proxmox cluster `prx-cluster-01`: node `pve` (192.168.0.2), node `pve-02` (192.168.0.200), node `external-services` (192.168.0.201) — third node added for real quorum-based HA, and also hosts standalone VMs for external services (see the `tf_external_services_*` modules below), separate from the tf-managed K8s cluster.
+- A least-privilege Proxmox API token for Terraform: user `terraform@pve`, role `TerraformProv` (VM lifecycle + datastore privileges), ACL granted at `/` with `propagate: 1` — this covers every current and future cluster node automatically, no per-node token setup needed. Never use `root@pam`'s own credentials here.
+- **Cloud-init Ubuntu 24.04 templates, built manually — NOT Terraform-managed.** VMID `9000` on `pve`, VMID `9100` on `pve-02`, VMID `9200` on `external-services`. Terraform only clones these; it never creates them. See [Gotchas](#gotchas-learned-the-hard-way) — these have been accidentally deleted once already, which breaks every `module` block until rebuilt.
 
 ## `terraform/` — VM provisioning
 
@@ -23,16 +23,26 @@ Two independent Terraform root modules, run in sequence with Ansible steps in be
 | `tf_control_plane_02` | tf-control-plane-02 | 9002 | pve-02 | 9100 | 192.168.0.4/24 |
 | `tf_worker_01` | tf-worker-01 | 9003 | pve | 9000 | 192.168.0.10/24 |
 | `tf_worker_02` | tf-worker-02 | 9004 | pve-02 | 9100 | 192.168.0.11/24 |
+| `tf_external_services_01` | tf-external-services-01 | 9005 | external-services | 9200 | 192.168.0.20/24 |
 
 `192.168.0.19` is reserved for the kube-vip control-plane VIP — it's not a VM and isn't Terraform-managed, it's assigned by `ansible/bootstrap_new_cluster.yml`.
+
+`tf_external_services_01` is **not** part of the K8s cluster the rest of this table provisions — it's a plain Ubuntu VM on the `external-services` node, intended to run Docker Compose stacks like the ones currently on `192.168.0.158` (see `../external-services/README.md`). It doesn't go through `k8s_node_setup.yml`/`bootstrap_new_cluster.yml`; once it's up, provision it like any other standalone host via `../ansible/external-hosts.ini` (add its IP there) and `../ansible/deploy_external_service.yml`.
 
 ### `modules/vm/`
 
 A reusable "clone a VM from a template" module.
 
-- **Inputs:** `vm_name`, `vm_id`, `node_name`, `template_vm_id`, `ip_address`, `gateway`, `ssh_public_key`.
+- **Inputs:** `vm_name`, `vm_id`, `node_name`, `template_vm_id`, `ip_address`, `gateway`, `ssh_public_key`; optional role inputs `teleport_role`, `vault_role`, `cloudflare_api_token`, `teleport_cluster_name`, `vault_domain`, `acme_staging`.
 - **Outputs:** `ip_address`, `vm_id`.
 - **Behavior:** full clone (`clone.full = true`) of `template_vm_id` onto `node_name`, with cloud-init setting a key-only `ubuntu` user (no password — SSH key auth only) and a static IPv4 address.
+- **Roles (cloud-init on first boot):** setting a role uploads a custom user-data snippet (`templates/*.tftpl`, stored as `local:snippets/cloud-init-<vm_name>.yaml`) instead of the generated one. Only one role per VM for now — a precondition rejects both being set.
+  - `teleport_role = "control_plane"` — Teleport auth + proxy + ssh (fresh CA), with a Let's Encrypt cert for `<cluster>` and `*.<cluster>` via certbot DNS-01. Teleport re-reads the keypair hourly (`https_keypairs_reload_interval`), so renewals need no restart.
+  - `vault_role = "server"` — single-node raft Vault, reachable **directly on the LAN** at `https://<vault_domain>:8200` (not through Teleport), with a Let's Encrypt cert. A certbot deploy hook copies each renewed cert into `/opt/vault/tls/` and SIGHUPs Vault. **`vault operator init` is deliberately manual** — the unseal keys and root token go to a password manager, never onto the VM's disk; Vault comes up sealed after every reboot.
+  - Renewal for both runs via certbot's own `certbot.timer` (twice daily); check with `systemctl list-timers certbot.timer` and `certbot renew --dry-run`.
+  - Prerequisites: `CLOUDFLARE_API_TOKEN` in `terraform.tfvars` (Zone:DNS:Edit on `homebytes.space` only — it ends up in state, the Proxmox snippet, and `/etc/letsencrypt/cloudflare.ini` on the VM), plus the `Datastore.Allocate` privilege on `TerraformProv`, `snippets` content enabled on the node's `local` storage, and the provider's `ssh` block (snippet uploads go over SSH, not the API).
+  - DNS-01 issues the cert without any A record, but clients still need one to reach the VM: `vault.homebytes.space → 192.168.0.22`. `teleport.homebytes.space` still points at `.158` until the Teleport cutover.
+  - Every recreate issues a new cert, and Let's Encrypt allows 5 duplicate certificates per identical name set per week — set `acme_staging = true` while iterating.
 - **Known limitation:** no `cpu_cores`/`memory_mb`/`disk_size` override — every clone inherits the template's fixed sizing exactly (currently 2 vCPU / 2GB RAM / 20.5GB disk, after the resize in [Gotchas](#gotchas-learned-the-hard-way)). If you need a bigger/smaller VM, resize after cloning via `qm resize`, or extend the module.
 
 ### Running it
