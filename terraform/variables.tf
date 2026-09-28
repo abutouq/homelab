@@ -18,4 +18,5 @@ variable "CLOUDFLARE_API_TOKEN" {
 variable "CLOUDFLARE_ZONE_ID" {
   description = "Cloudflare zone ID used to create DNS records."
   type        = string
+  sensitive   = true
 }

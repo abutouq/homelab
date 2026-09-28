@@ -1,0 +1,75 @@
+digraph G {
+  rankdir = "RL";
+  node [shape = rect, fontname = "sans-serif"];
+  "cloudflare_dns_record.vault" [label="cloudflare_dns_record.vault"];
+  "random_password.teleport_join_token" [label="random_password.teleport_join_token"];
+  subgraph "cluster_module.tf_control_plane_01" {
+    label = "module.tf_control_plane_01"
+    fontname = "sans-serif"
+    "module.tf_control_plane_01.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_control_plane_01.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_control_plane_01.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  subgraph "cluster_module.tf_control_plane_02" {
+    label = "module.tf_control_plane_02"
+    fontname = "sans-serif"
+    "module.tf_control_plane_02.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_control_plane_02.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_control_plane_02.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  subgraph "cluster_module.tf_external_services_01" {
+    label = "module.tf_external_services_01"
+    fontname = "sans-serif"
+    "module.tf_external_services_01.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_external_services_01.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_external_services_01.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  subgraph "cluster_module.tf_teleport_apps_01" {
+    label = "module.tf_teleport_apps_01"
+    fontname = "sans-serif"
+    "module.tf_teleport_apps_01.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_teleport_apps_01.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_teleport_apps_01.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  subgraph "cluster_module.tf_vault_01" {
+    label = "module.tf_vault_01"
+    fontname = "sans-serif"
+    "module.tf_vault_01.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_vault_01.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_vault_01.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  subgraph "cluster_module.tf_worker_01" {
+    label = "module.tf_worker_01"
+    fontname = "sans-serif"
+    "module.tf_worker_01.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_worker_01.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_worker_01.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  subgraph "cluster_module.tf_worker_02" {
+    label = "module.tf_worker_02"
+    fontname = "sans-serif"
+    "module.tf_worker_02.data.cloudinit_config.this" [label="data.cloudinit_config.this"];
+    "module.tf_worker_02.proxmox_virtual_environment_file.cloud_init" [label="proxmox_virtual_environment_file.cloud_init"];
+    "module.tf_worker_02.proxmox_virtual_environment_vm.this" [label="proxmox_virtual_environment_vm.this"];
+  }
+  "module.tf_control_plane_01.data.cloudinit_config.this" -> "random_password.teleport_join_token";
+  "module.tf_control_plane_01.proxmox_virtual_environment_file.cloud_init" -> "module.tf_control_plane_01.data.cloudinit_config.this";
+  "module.tf_control_plane_01.proxmox_virtual_environment_vm.this" -> "module.tf_control_plane_01.proxmox_virtual_environment_file.cloud_init";
+  "module.tf_control_plane_02.data.cloudinit_config.this" -> "random_password.teleport_join_token";
+  "module.tf_control_plane_02.proxmox_virtual_environment_file.cloud_init" -> "module.tf_control_plane_02.data.cloudinit_config.this";
+  "module.tf_control_plane_02.proxmox_virtual_environment_vm.this" -> "module.tf_control_plane_02.proxmox_virtual_environment_file.cloud_init";
+  "module.tf_external_services_01.proxmox_virtual_environment_file.cloud_init" -> "module.tf_external_services_01.data.cloudinit_config.this";
+  "module.tf_external_services_01.proxmox_virtual_environment_vm.this" -> "module.tf_external_services_01.proxmox_virtual_environment_file.cloud_init";
+  "module.tf_teleport_apps_01.data.cloudinit_config.this" -> "random_password.teleport_join_token";
+  "module.tf_teleport_apps_01.proxmox_virtual_environment_file.cloud_init" -> "module.tf_teleport_apps_01.data.cloudinit_config.this";
+  "module.tf_teleport_apps_01.proxmox_virtual_environment_vm.this" -> "module.tf_teleport_apps_01.proxmox_virtual_environment_file.cloud_init";
+  "module.tf_vault_01.data.cloudinit_config.this" -> "random_password.teleport_join_token";
+  "module.tf_vault_01.proxmox_virtual_environment_file.cloud_init" -> "module.tf_vault_01.data.cloudinit_config.this";
+  "module.tf_vault_01.proxmox_virtual_environment_vm.this" -> "module.tf_vault_01.proxmox_virtual_environment_file.cloud_init";
+  "module.tf_worker_01.data.cloudinit_config.this" -> "random_password.teleport_join_token";
+  "module.tf_worker_01.proxmox_virtual_environment_file.cloud_init" -> "module.tf_worker_01.data.cloudinit_config.this";
+  "module.tf_worker_01.proxmox_virtual_environment_vm.this" -> "module.tf_worker_01.proxmox_virtual_environment_file.cloud_init";
+  "module.tf_worker_02.data.cloudinit_config.this" -> "random_password.teleport_join_token";
+  "module.tf_worker_02.proxmox_virtual_environment_file.cloud_init" -> "module.tf_worker_02.data.cloudinit_config.this";
+  "module.tf_worker_02.proxmox_virtual_environment_vm.this" -> "module.tf_worker_02.proxmox_virtual_environment_file.cloud_init";
+}
