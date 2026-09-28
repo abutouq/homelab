@@ -22,11 +22,22 @@ variable "ssh_public_key" {
 variable "teleport_role" {
   type        = string
   default     = "none"
-  description = "Teleport role to configure via cloud-init on first boot: \"none\" (nothing installed), \"control_plane\" (auth+proxy+ssh, fresh CA -- this is the actual Teleport cluster), or \"agent\" (joins an existing control plane -- not implemented yet)."
+  description = "Teleport role to configure via cloud-init on first boot (composes with vault_role): \"none\" (nothing installed), \"control_plane\" (auth+proxy+ssh, fresh CA -- this is the actual Teleport cluster), or \"agent\" (ssh_service agent that joins the control plane with teleport_join_token)."
   validation {
     condition     = contains(["none", "control_plane", "agent"], var.teleport_role)
     error_message = "teleport_role must be one of: none, control_plane, agent."
   }
+}
+variable "teleport_join_token" {
+  type        = string
+  default     = null
+  sensitive   = true
+  description = "Static node/app join token. The control plane registers it; agents use it to join at first boot."
+}
+variable "teleport_proxy_ip" {
+  type        = string
+  default     = null
+  description = "Agents only: pin teleport_cluster_name to this IP in /etc/hosts. Needed until the public DNS record points at the control plane; set to null after cutover."
 }
 variable "teleport_cluster_name" {
   type        = string

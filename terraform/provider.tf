@@ -9,6 +9,11 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 5"
     }
+
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -24,6 +29,6 @@ provider "proxmox" {
 }
 
 # Cloudflare provider is used to create DNS-01 challenges for certbot on the Teleport and Vault VMs. The token is scoped to Zone:DNS:Edit on homebytes.space, and ends up in Terraform state, the Proxmox snippet file, and /etc/letsencrypt/cloudflare.ini on those VMs -- keep its scope minimal.
-provider "cloudflare" { 
+provider "cloudflare" {
   api_token = var.CLOUDFLARE_API_TOKEN
 }

@@ -1,0 +1,42 @@
+#cloud-config
+write_files:
+  - path: /etc/teleport.yaml
+    owner: root:root
+    permissions: '0600'
+    content: |
+      version: v3
+      teleport:
+        nodename: ${nodename}
+        data_dir: /var/lib/teleport
+        proxy_server: ${cluster_name}:443
+        join_params:
+          method: token
+          token_name: ${teleport_join_token}
+        log:
+          output: stderr
+          severity: INFO
+          format:
+            output: json
+      auth_service:
+        enabled: "no"
+      proxy_service:
+        enabled: "no"
+      ssh_service:
+        enabled: "yes"
+      app_service:
+        enabled: "no"
+
+runcmd:
+%{ if teleport_proxy_ip != "" ~}
+  # Until the Cloudflare record for ${cluster_name} moves off the old server,
+  # pin it to the new control plane. Joining by name (not IP) keeps TLS
+  # verification of the proxy's Let's Encrypt cert intact.
+  - echo "${teleport_proxy_ip} ${cluster_name}" >> /etc/hosts
+%{ endif ~}
+  - mkdir -p /etc/apt/keyrings
+  - curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc
+  - echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18" > /etc/apt/sources.list.d/teleport.list
+  - apt-get update -qq
+  - apt-get install -y teleport
+  - systemctl enable teleport
+  - systemctl restart teleport

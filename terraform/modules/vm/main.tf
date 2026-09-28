@@ -1,34 +1,59 @@
 locals {
-  # One VM gets exactly one cloud-init user-data file, so roles don't compose
-  # yet -- the precondition below rejects setting both instead of silently
-  # dropping one.
-  cloud_init_template = (
-    var.teleport_role == "control_plane" ? "teleport-control-plane-cloud-init.yaml.tftpl" :
-    var.teleport_role == "agent" ? "teleport-agent-cloud-init.yaml.tftpl" :
-    var.vault_role == "server" ? "vault-cloud-init.tftpl" :
-    null
-  )
+  # Role parts are merged into one multi-part user-data, so roles compose
+  # (e.g. a Vault server that is also a Teleport agent).
+  role_parts = compact([
+    var.teleport_role == "control_plane" ? "teleport-control-plane.yaml.tftpl" : "",
+    var.teleport_role == "agent" ? "teleport-agent.yaml.tftpl" : "",
+    var.vault_role == "server" ? "vault-server.yaml.tftpl" : "",
+  ])
+  has_role   = length(local.role_parts) > 0
   needs_acme = var.teleport_role == "control_plane" || var.vault_role == "server"
+
+  # Templates ignore vars they don't reference, so every part gets the same set.
+  template_vars = {
+    username             = "ubuntu"
+    ssh_public_key       = var.ssh_public_key
+    nodename             = var.vm_name
+    cluster_name         = var.teleport_cluster_name
+    teleport_join_token  = var.teleport_join_token == null ? "" : var.teleport_join_token
+    teleport_proxy_ip    = var.teleport_proxy_ip == null ? "" : var.teleport_proxy_ip
+    vault_domain         = var.vault_domain
+    vault_ip             = split("/", var.ip_address)[0]
+    cloudflare_api_token = var.cloudflare_api_token == null ? "" : var.cloudflare_api_token
+    acme_staging         = var.acme_staging
+  }
+}
+
+data "cloudinit_config" "this" {
+  count         = local.has_role ? 1 : 0
+  gzip          = false
+  base64_encode = false
+
+  part {
+    content_type = "text/cloud-config"
+    content      = templatefile("${path.module}/templates/base.yaml.tftpl", local.template_vars)
+  }
+
+  dynamic "part" {
+    for_each = local.role_parts
+    content {
+      content_type = "text/cloud-config"
+      content      = templatefile("${path.module}/templates/${part.value}", local.template_vars)
+      # Append lists (packages, write_files, runcmd) across parts instead of
+      # letting a later part replace an earlier one's.
+      merge_type = "list(append)+dict(no_replace,recurse_list)+str()"
+    }
+  }
 }
 
 resource "proxmox_virtual_environment_file" "cloud_init" {
-  count        = local.cloud_init_template == null ? 0 : 1
+  count        = local.has_role ? 1 : 0
   content_type = "snippets"
   datastore_id = "local"
   node_name    = var.node_name
 
   source_raw {
-    # Templates ignore vars they don't reference, so every role gets the same set.
-    data = templatefile("${path.module}/templates/${local.cloud_init_template}", {
-      username             = "ubuntu"
-      ssh_public_key       = var.ssh_public_key
-      nodename             = var.vm_name
-      cluster_name         = var.teleport_cluster_name
-      vault_domain         = var.vault_domain
-      vault_ip             = split("/", var.ip_address)[0]
-      cloudflare_api_token = coalesce(var.cloudflare_api_token, "")
-      acme_staging         = var.acme_staging
-    })
+    data      = sensitive(data.cloudinit_config.this[0].rendered)
     file_name = "cloud-init-${var.vm_name}.yaml"
   }
 }
@@ -44,17 +69,17 @@ resource "proxmox_virtual_environment_vm" "this" {
   }
 
   initialization {
-    # A custom user-data file replaces the generated one, so each template
-    # creates the ubuntu user itself.
+    # A custom user-data file replaces the generated one; base.yaml.tftpl
+    # creates the ubuntu user in that case.
     dynamic "user_account" {
-      for_each = local.cloud_init_template == null ? [1] : []
+      for_each = local.has_role ? [] : [1]
       content {
         username = "ubuntu"
         keys     = [var.ssh_public_key]
       }
     }
 
-    user_data_file_id = local.cloud_init_template == null ? null : proxmox_virtual_environment_file.cloud_init[0].id
+    user_data_file_id = local.has_role ? proxmox_virtual_environment_file.cloud_init[0].id : null
 
     ip_config {
       ipv4 {
@@ -65,13 +90,17 @@ resource "proxmox_virtual_environment_vm" "this" {
   }
 
   lifecycle {
-    precondition {
-      condition     = var.teleport_role == "none" || var.vault_role == "none"
-      error_message = "teleport_role and vault_role can't both be set on one VM yet -- only one cloud-init user-data file is attached."
-    }
+    # Disks come from the template; after that, Proxmox CSI hot-plugs PV disks
+    # that Terraform must not try to detach.
+    ignore_changes = [disk]
+
     precondition {
       condition     = !local.needs_acme || nonsensitive(var.cloudflare_api_token != null)
       error_message = "cloudflare_api_token is required when teleport_role = \"control_plane\" or vault_role = \"server\" (certbot DNS-01)."
+    }
+    precondition {
+      condition     = var.teleport_role == "none" || nonsensitive(var.teleport_join_token != null)
+      error_message = "teleport_join_token is required when teleport_role is \"control_plane\" or \"agent\"."
     }
   }
 }
