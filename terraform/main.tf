@@ -1,3 +1,11 @@
+# Shared static join token: registered by the control plane, used by every
+# agent below. Rotating it (terraform apply -replace=random_password.teleport_join_token)
+# recreates the control plane and all agents.
+resource "random_password" "teleport_join_token" {
+  length  = 40
+  special = false
+}
+
 module "tf_control_plane_01" {
   source              = "./modules/vm"
   vm_name             = "tf-control-plane-01"
@@ -9,7 +17,8 @@ module "tf_control_plane_01" {
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
   teleport_role       = "agent"
   teleport_join_token = random_password.teleport_join_token.result
-  teleport_proxy_ip   = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
 }
 
 module "tf_control_plane_02" {
@@ -23,7 +32,8 @@ module "tf_control_plane_02" {
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
   teleport_role       = "agent"
   teleport_join_token = random_password.teleport_join_token.result
-  teleport_proxy_ip   = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
 }
 
 module "tf_worker_01" {
@@ -37,7 +47,8 @@ module "tf_worker_01" {
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
   teleport_role       = "agent"
   teleport_join_token = random_password.teleport_join_token.result
-  teleport_proxy_ip   = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
 }
 
 module "tf_worker_02" {
@@ -51,26 +62,23 @@ module "tf_worker_02" {
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
   teleport_role       = "agent"
   teleport_join_token = random_password.teleport_join_token.result
-  teleport_proxy_ip   = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
 }
 
 module "tf_external_services_01" {
-  source         = "./modules/vm"
-  vm_name        = "tf-external-services-01"
-  vm_id          = 9005
-  node_name      = "external-services" # node .201
-  template_vm_id = 9200
-  ip_address     = "192.168.0.20/24"
-  gateway        = "192.168.0.1"
-  ssh_public_key = trimspace(file("~/.ssh/id_ed25519.pub"))
-}
-
-# Shared static join token: registered by the control plane, used by every
-# agent below. Rotating it (terraform apply -replace=random_password.teleport_join_token)
-# recreates the control plane and all agents.
-resource "random_password" "teleport_join_token" {
-  length  = 40
-  special = false
+  source              = "./modules/vm"
+  vm_name             = "tf-external-services-01"
+  vm_id               = 9005
+  node_name           = "external-services" # node .201
+  template_vm_id      = 9200
+  ip_address          = "192.168.0.20/24"
+  gateway             = "192.168.0.1"
+  ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
+  teleport_role       = "agent"
+  teleport_join_token = random_password.teleport_join_token.result
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
 }
 
 module "tf_teleport_apps_01" {
@@ -106,8 +114,9 @@ module "tf_vault_01" {
 
 resource "cloudflare_dns_record" "vault" {
   zone_id = var.CLOUDFLARE_ZONE_ID
-  name    = "Vault"
+  name    = "vault.homebytes.space"
   type    = "A"
   content = split("/", module.tf_vault_01.ip_address)[0]
   ttl     = 300
+  proxied = false
 }
