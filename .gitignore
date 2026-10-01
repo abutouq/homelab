@@ -16,3 +16,9 @@ terraform/**/crash.log
 ansible/proxmox-k8s-cluster-hosts.ini
 terraform/vault-cluster.json
 terraform/vault-cluster.json
+# Packer secrets
+*.pkrvars.hcl
+!*.pkrvars.hcl.example
+# Packer downloaded ISOs
+packer/downloaded_iso_path/
+packer/packer_cache/
