@@ -7,7 +7,7 @@ resource "random_password" "teleport_join_token" {
 }
 
 module "tf_control_plane_01" {
-  source              = "./modules/vm"
+  source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-01"
   vm_id               = 9001
   node_name           = "pve" # node .2
@@ -22,7 +22,7 @@ module "tf_control_plane_01" {
 }
 
 module "tf_control_plane_02" {
-  source              = "./modules/vm"
+  source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-02"
   vm_id               = 9002
   node_name           = "pve-02" # node .200
@@ -37,7 +37,7 @@ module "tf_control_plane_02" {
 }
 
 module "tf_worker_01" {
-  source              = "./modules/vm"
+  source              = "${path.root}/modules/vm"
   vm_name             = "tf-worker-01"
   vm_id               = 9003
   node_name           = "pve" # node .2
@@ -52,7 +52,7 @@ module "tf_worker_01" {
 }
 
 module "tf_worker_02" {
-  source              = "./modules/vm"
+  source              = "${path.root}/modules/vm"
   vm_name             = "tf-worker-02"
   vm_id               = 9004
   node_name           = "pve-02" # node .200
@@ -67,7 +67,7 @@ module "tf_worker_02" {
 }
 
 module "tf_external_services_01" {
-  source              = "./modules/vm"
+  source              = "${path.root}/modules/vm"
   vm_name             = "tf-external-services-01"
   vm_id               = 9005
   node_name           = "external-services" # node .201
@@ -82,7 +82,7 @@ module "tf_external_services_01" {
 }
 
 module "tf_teleport_apps_01" {
-  source               = "./modules/vm"
+  source               = "${path.root}/modules/vm"
   vm_name              = "tf-teleport-apps-01"
   vm_id                = 9006
   node_name            = "external-services" # node .201
@@ -96,7 +96,7 @@ module "tf_teleport_apps_01" {
 }
 
 module "tf_vault_01" {
-  source              = "./modules/vm"
+  source              = "${path.root}/modules/vm"
   vm_name             = "tf-vault-01"
   vm_id               = 9007
   node_name           = "external-services" # node .201
