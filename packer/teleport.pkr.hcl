@@ -1,0 +1,66 @@
+# Teleport image, cloned from the ubuntu-base template (9300). Build with: make teleport
+# Baked in: the Teleport package (every VM is an agent; the control plane uses the same image) and certbot with the Cloudflare plugin.
+# Left to cloud-init: /etc/teleport.yaml, join token, Cloudflare token, issuing the cert, starting Teleport.
+
+source "proxmox-clone" "teleport" {
+  proxmox_url              = "https://192.168.0.201:8006/api2/json"
+  username                 = "packer@pve!packer"
+  token                    = var.proxmox_api_token_secret
+  insecure_skip_tls_verify = true # self-signed cert
+  node                     = "external-services"
+
+  clone_vm_id          = 9300
+  vm_id                = 9302
+  vm_name              = "ubuntu-2404-teleport-template"
+  template_description = "Teleport on Ubuntu 24.04 built by Packer on ${timestamp()}"
+  full_clone           = true
+  cores                = 2
+  memory               = 2048
+  qemu_agent           = true
+
+  network_adapters {
+    model  = "virtio"
+    bridge = "vmbr0"
+  }
+
+  ipconfig {
+    ip = "dhcp"
+  }
+
+  # Keep the cloud-init drive Terraform's initialization block needs (the clone builder drops it otherwise).
+  cloud_init              = true
+  cloud_init_storage_pool = "local-lvm"
+
+  ssh_username         = "ubuntu"
+  ssh_private_key_file = "~/.ssh/id_ed25519"
+  ssh_timeout          = "10m"
+}
+
+build {
+  sources = ["source.proxmox-clone.teleport"]
+
+  provisioner "shell" {
+    environment_vars = ["DEBIAN_FRONTEND=noninteractive"]
+    inline = [
+      # The clone's first boot runs cloud-init (and apt); wait so we don't race it for the apt lock.
+      "cloud-init status --wait || [ $? -eq 2 ]",
+      "sudo mkdir -p /etc/apt/keyrings",
+      "sudo curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc",
+      "echo 'deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18' | sudo tee /etc/apt/sources.list.d/teleport.list",
+      "sudo apt-get update -qq",
+      "sudo -E apt-get install -y teleport certbot python3-certbot-dns-cloudflare",
+      # The config and join token arrive per node via cloud-init; don't start Teleport without them.
+      "sudo systemctl disable teleport",
+      "teleport version"
+    ]
+  }
+
+  # Same reset as the base image, so clones get a fresh machine-id and run cloud-init again.
+  provisioner "shell" {
+    inline = [
+      "sudo apt-get clean",
+      "sudo cloud-init clean --logs --machine-id",
+      "sync"
+    ]
+  }
+}
