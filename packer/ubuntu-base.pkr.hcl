@@ -18,7 +18,8 @@ source "proxmox-iso" "ubuntu" {
   proxmox_url              = "https://192.168.0.201:8006/api2/json"
   username                 = "packer@pve!packer"
   token                    = var.proxmox_api_token_secret
-  insecure_skip_tls_verify = true # self-signed cert
+  insecure_skip_tls_verify = true  # self-signed cert
+  task_timeout             = "10m" # Proxmox tasks (ISO attach, template conversion) can exceed the 1m default
   node                     = "external-services"
 
   # 9000 is the existing cloud-image template Terraform clones; 9300 is free.
