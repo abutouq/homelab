@@ -27,6 +27,10 @@ source "proxmox-clone" "vault" {
     ip = "dhcp"
   }
 
+  # Keep the cloud-init drive Terraform's initialization block needs (the clone builder drops it otherwise).
+  cloud_init              = true
+  cloud_init_storage_pool = "local-lvm"
+
   ssh_username         = "ubuntu"
   ssh_private_key_file = "~/.ssh/id_ed25519"
   ssh_timeout          = "10m"

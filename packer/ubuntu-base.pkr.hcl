@@ -99,6 +99,21 @@ source "proxmox-iso" "ubuntu" {
 build {
   sources = ["source.proxmox-iso.ubuntu"]
 
+  # Teleport is baked into the base because every VM is a Teleport agent.
+  # Config and join token arrive per node via cloud-init; the service stays disabled until then.
+  provisioner "shell" {
+    environment_vars = ["DEBIAN_FRONTEND=noninteractive"]
+    inline = [
+      "sudo mkdir -p /etc/apt/keyrings",
+      "sudo curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc",
+      "echo 'deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18' | sudo tee /etc/apt/sources.list.d/teleport.list",
+      "sudo apt-get update -qq",
+      "sudo -E apt-get install -y teleport",
+      "sudo systemctl disable teleport",
+      "teleport version"
+    ]
+  }
+
   # Reset installer leftovers so clones run cloud-init fresh from the Proxmox cloud-init drive.
   provisioner "shell" {
     inline = [

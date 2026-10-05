@@ -1,5 +1,5 @@
 # Teleport image, cloned from the ubuntu-base template (9300). Build with: make teleport
-# Baked in: the Teleport package (every VM is an agent; the control plane uses the same image) and certbot with the Cloudflare plugin.
+# Baked in: certbot with the Cloudflare plugin (the Teleport package itself comes from the base image).
 # Left to cloud-init: /etc/teleport.yaml, join token, Cloudflare token, issuing the cert, starting Teleport.
 
 source "proxmox-clone" "teleport" {
@@ -44,13 +44,8 @@ build {
     inline = [
       # The clone's first boot runs cloud-init (and apt); wait so we don't race it for the apt lock.
       "cloud-init status --wait || [ $? -eq 2 ]",
-      "sudo mkdir -p /etc/apt/keyrings",
-      "sudo curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc",
-      "echo 'deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18' | sudo tee /etc/apt/sources.list.d/teleport.list",
       "sudo apt-get update -qq",
-      "sudo -E apt-get install -y teleport certbot python3-certbot-dns-cloudflare",
-      # The config and join token arrive per node via cloud-init; don't start Teleport without them.
-      "sudo systemctl disable teleport",
+      "sudo -E apt-get install -y certbot python3-certbot-dns-cloudflare",
       "teleport version"
     ]
   }

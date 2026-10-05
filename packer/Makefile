@@ -1,6 +1,7 @@
 # Packer image builds. Run from this directory:
 #   make all               build base, then vault, teleport and grafana (skips images that already exist)
 #   make teleport          build one role image (builds base first if missing)
+#   make rebuild-all       delete and rebuild every image, base first
 #   make rebuild-teleport  delete that role's template on the node, then build it again
 # The token secret comes from the gitignored secrets.auto.pkrvars.hcl.
 # To add an image: write <name>.pkr.hcl, then add it to ROLES and give it an ID_<name> below.
@@ -13,9 +14,11 @@ ID_vault    := 9301
 ID_teleport := 9302
 ID_grafana  := 9303
 
-.PHONY: all init validate base rebuild-base $(ROLES) $(addprefix rebuild-,$(ROLES))
+.PHONY: rebuild-all all init validate base rebuild-base $(ROLES) $(addprefix rebuild-,$(ROLES))
 
 all: base $(ROLES)
+
+rebuild-all: rebuild-base $(addprefix rebuild-,$(ROLES))
 
 init:
 	packer init .
