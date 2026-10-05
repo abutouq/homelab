@@ -69,3 +69,19 @@ variable "acme_staging" {
   default     = false
   description = "Use Let's Encrypt staging (untrusted certs, no rate limits) -- flip on while iterating on VM recreation, since every recreate issues a new cert."
 }
+
+variable "image_baked" {
+  type        = bool
+  default     = false
+  description = "True when template_vm_id is a Packer image with Teleport/Vault/Grafana/certbot already installed (packer/*.pkr.hcl). cloud-init then skips package installs. The vault, teleport control_plane and grafana roles require it."
+}
+
+variable "grafana_role" {
+  type        = string
+  default     = "none"
+  description = "Grafana role to configure via cloud-init on first boot: \"none\" or \"server\" (starts the Grafana server baked into the image, on port 3000)."
+  validation {
+    condition     = contains(["none", "server"], var.grafana_role)
+    error_message = "grafana_role must be one of: none, server."
+  }
+}

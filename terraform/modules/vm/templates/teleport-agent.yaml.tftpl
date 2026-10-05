@@ -33,10 +33,12 @@ runcmd:
   # verification of the proxy's Let's Encrypt cert intact.
   - echo "${teleport_proxy_ip} ${cluster_name}" >> /etc/hosts
 %{ endif ~}
+%{ if !image_baked ~}
   - mkdir -p /etc/apt/keyrings
   - curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc
   - echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18" > /etc/apt/sources.list.d/teleport.list
   - apt-get update -qq
   - apt-get install -y teleport
+%{ endif ~}
   - systemctl enable teleport
   - systemctl restart teleport

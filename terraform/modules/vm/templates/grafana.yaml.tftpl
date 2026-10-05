@@ -1,0 +1,4 @@
+#cloud-config
+# Grafana is installed (and left disabled) by packer/grafana.pkr.hcl; start it here.
+runcmd:
+  - systemctl enable --now grafana-server

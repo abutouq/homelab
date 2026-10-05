@@ -86,7 +86,8 @@ module "tf_teleport_apps_01" {
   vm_name              = "tf-teleport-apps-01"
   vm_id                = 9006
   node_name            = "external-services" # node .201
-  template_vm_id       = 9200
+  template_vm_id       = 9302                # Packer: packer/teleport.pkr.hcl
+  image_baked          = true
   ip_address           = "192.168.0.21/24"
   gateway              = "192.168.0.1"
   ssh_public_key       = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -100,7 +101,8 @@ module "tf_vault_01" {
   vm_name             = "tf-vault-01"
   vm_id               = 9007
   node_name           = "external-services" # node .201
-  template_vm_id      = 9200
+  template_vm_id      = 9301                # Packer: packer/vault.pkr.hcl
+  image_baked         = true
   ip_address          = "192.168.0.22/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -110,6 +112,23 @@ module "tf_vault_01" {
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip    = split("/", module.tf_teleport_apps_01.ip_address)[0]
   cloudflare_api_token = var.CLOUDFLARE_API_TOKEN
+}
+
+module "tf_grafana_01" {
+  source              = "${path.root}/modules/vm"
+  vm_name             = "tf-grafana-01"
+  vm_id               = 9008
+  node_name           = "external-services" # node .201
+  template_vm_id      = 9303                # Packer: packer/grafana.pkr.hcl
+  image_baked         = true
+  ip_address          = "192.168.0.23/24"
+  gateway             = "192.168.0.1"
+  ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
+  grafana_role        = "server"
+  teleport_role       = "agent"
+  teleport_join_token = random_password.teleport_join_token.result
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
 }
 
 resource "cloudflare_dns_record" "vault" {

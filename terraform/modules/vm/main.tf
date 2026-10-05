@@ -5,6 +5,7 @@ locals {
     var.teleport_role == "control_plane" ? "teleport-control-plane.yaml.tftpl" : "",
     var.teleport_role == "agent" ? "teleport-agent.yaml.tftpl" : "",
     var.vault_role == "server" ? "vault-server.yaml.tftpl" : "",
+    var.grafana_role == "server" ? "grafana.yaml.tftpl" : "",
   ])
   has_role   = length(local.role_parts) > 0
   needs_acme = var.teleport_role == "control_plane" || var.vault_role == "server"
@@ -21,6 +22,7 @@ locals {
     vault_ip             = split("/", var.ip_address)[0]
     cloudflare_api_token = var.cloudflare_api_token == null ? "" : var.cloudflare_api_token
     acme_staging         = var.acme_staging
+    image_baked          = var.image_baked
   }
 }
 
@@ -97,6 +99,10 @@ resource "proxmox_virtual_environment_vm" "this" {
     precondition {
       condition     = !local.needs_acme || nonsensitive(var.cloudflare_api_token != null)
       error_message = "cloudflare_api_token is required when teleport_role = \"control_plane\" or vault_role = \"server\" (certbot DNS-01)."
+    }
+    precondition {
+      condition     = var.image_baked || (var.vault_role == "none" && var.grafana_role == "none" && var.teleport_role != "control_plane")
+      error_message = "The vault, grafana and teleport control_plane roles need a Packer image (image_baked = true); their cloud-init no longer installs packages."
     }
     precondition {
       condition     = var.teleport_role == "none" || nonsensitive(var.teleport_join_token != null)

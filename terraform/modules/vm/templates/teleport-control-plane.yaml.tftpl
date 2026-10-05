@@ -1,8 +1,4 @@
 #cloud-config
-packages:
-  - certbot
-  - python3-certbot-dns-cloudflare
-
 write_files:
   - path: /etc/letsencrypt/cloudflare.ini
     owner: root:root
@@ -49,11 +45,6 @@ write_files:
         enabled: "no"
 
 runcmd:
-  - mkdir -p /etc/apt/keyrings
-  - curl -fsSL https://apt.releases.teleport.dev/gpg -o /etc/apt/keyrings/teleport-archive-keyring.asc
-  - echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/ubuntu noble stable/v18" > /etc/apt/sources.list.d/teleport.list
-  - apt-get update -qq
-  - apt-get install -y teleport
   # The cert must exist before Teleport starts, or the proxy fails to load its keypair.
   - certbot certonly --non-interactive --agree-tos --register-unsafely-without-email --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --dns-cloudflare-propagation-seconds 30 --cert-name ${cluster_name} -d ${cluster_name} -d '*.${cluster_name}' %{ if acme_staging }--staging%{ endif }
   - systemctl enable --now certbot.timer
