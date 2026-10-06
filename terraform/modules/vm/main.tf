@@ -70,6 +70,11 @@ resource "proxmox_virtual_environment_vm" "this" {
     full  = true
   }
 
+  # Pinned rather than inherited: Packer's clone builder defaults templates to the
+  # emulated LSI controller, and guests on it froze for good when the node's SSD
+  # stalled on writes (2026-10-06), while virtio-scsi guests recovered.
+  scsi_hardware = "virtio-scsi-pci"
+
   initialization {
     # A custom user-data file replaces the generated one; base.yaml.tftpl
     # creates the ubuntu user in that case.

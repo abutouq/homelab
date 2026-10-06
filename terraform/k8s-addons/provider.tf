@@ -12,6 +12,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14"
     }
+    vault = {
+      source  = "hashicorp/vault"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -35,4 +39,9 @@ provider "kubernetes" {
 provider "kubectl" {
   config_path      = var.kubeconfig_path
   load_config_file = true
+}
+
+# Reads secrets for the cluster addons. Auth comes from VAULT_TOKEN or ~/.vault-token.
+provider "vault" {
+  address = "https://vault.homebytes.space"
 }

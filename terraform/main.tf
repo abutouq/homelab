@@ -6,6 +6,29 @@ resource "random_password" "teleport_join_token" {
   special = false
 }
 
+# Join token for the kube agent in terraform/k8s-addons. Kept apart from the shared
+# node/app token above because it grants only the Kube role. Unlike that one it is NOT
+# a static token in the control plane's cloud-init (changing that would mean rebuilding
+# the control plane and every agent), so it must be registered once with `tctl create`,
+# see terraform/README.md.
+resource "random_password" "teleport_kube_token" {
+  length  = 40
+  special = false
+}
+
+# Published to Vault for joins outside Terraform (manual `teleport start`, Ansible,
+# k8s-addons). Terraform stays the source of truth: -replace on the passwords updates this too.
+resource "vault_kv_secret_v2" "teleport_join_token" {
+  mount = "secret"
+  name  = "homelab/teleport"
+  data_json = jsonencode({
+    join_token = random_password.teleport_join_token.result
+    kube_token = random_password.teleport_kube_token.result
+    roles      = "node,app"
+    proxy      = "teleport.homebytes.space:443"
+  })
+}
+
 module "tf_control_plane_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-01"
@@ -93,7 +116,7 @@ module "tf_teleport_apps_01" {
   ssh_public_key       = trimspace(file("~/.ssh/id_ed25519.pub"))
   teleport_role        = "control_plane"
   teleport_join_token  = random_password.teleport_join_token.result
-  cloudflare_api_token = var.CLOUDFLARE_API_TOKEN
+  cloudflare_api_token = local.cloudflare["api_token"]
 }
 
 module "tf_vault_01" {
@@ -111,7 +134,7 @@ module "tf_vault_01" {
   teleport_join_token = random_password.teleport_join_token.result
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip    = split("/", module.tf_teleport_apps_01.ip_address)[0]
-  cloudflare_api_token = var.CLOUDFLARE_API_TOKEN
+  cloudflare_api_token = local.cloudflare["api_token"]
 }
 
 module "tf_grafana_01" {
@@ -132,7 +155,7 @@ module "tf_grafana_01" {
 }
 
 resource "cloudflare_dns_record" "vault" {
-  zone_id = var.CLOUDFLARE_ZONE_ID
+  zone_id = local.cloudflare["zone_id"]
   name    = "vault.homebytes.space"
   type    = "A"
   content = split("/", module.tf_vault_01.ip_address)[0]

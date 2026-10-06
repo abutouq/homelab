@@ -13,7 +13,31 @@ Two independent Terraform root modules, run in sequence with Ansible steps in be
 
 ## `terraform/` — VM provisioning
 
-`provider.tf` configures the `bpg/proxmox` provider. Credentials come from `variables.tf` (`PROXMOX_VE_ENDPOINT`, `PROXMOX_VE_API_TOKEN`) supplied via a gitignored `terraform.tfvars` or environment variables — never hardcoded in a `.tf` file.
+`provider.tf` configures the `bpg/proxmox` and `cloudflare` providers. Their credentials are read from Vault at `https://vault.homebytes.space`, so run `vault login` (or export `VAULT_TOKEN`) before `plan`/`apply`:
+
+- `secret/homelab/proxmox`: `endpoint`, `api_token`. Read as an ephemeral resource, so it is never written to state.
+- `secret/homelab/cloudflare`: `api_token`, `zone_id`. Read as a data source because both values feed resources (cloud-init snippets, the DNS record), so they do end up in state.
+
+Vault runs on `tf_vault_01`, a VM in this same stack. If Vault is down or sealed, nothing here can plan until it is unsealed or restored from a raft snapshot.
+
+### Teleport kube agent (`k8s-addons/teleport.tf`)
+
+The new cluster joins Teleport as `proxmox-homelab`. Its token (`kube_token` in `secret/homelab/teleport`, created in `main.tf`) only has the Kube role and is not a static token in the control plane's cloud-init, so register it once after the first `terraform apply` of the root stack:
+
+```bash
+TOKEN=$(vault kv get -field=kube_token secret/homelab/teleport)
+ssh ubuntu@192.168.0.21 "sudo tctl create -f" <<EOF
+kind: token
+version: v2
+metadata:
+  name: $TOKEN
+spec:
+  roles: [Kube]
+  join_method: token
+EOF
+```
+
+Then run `terraform -chdir=k8s-addons apply`. Without the registration the agent pod fails with "token not found". A rebuilt control plane needs the registration again.
 
 `main.tf` has one `module` block per VM, all using `./modules/vm`:
 
