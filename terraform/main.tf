@@ -42,6 +42,9 @@ module "tf_control_plane_01" {
   teleport_join_token = random_password.teleport_join_token.result
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # 2 GB ran out of memory (2026-10-07: installing ESO froze one, and with only
+  # 2 etcd members that took the whole cluster down).
+  memory_mb = 3072
 }
 
 module "tf_control_plane_02" {
@@ -57,6 +60,9 @@ module "tf_control_plane_02" {
   teleport_join_token = random_password.teleport_join_token.result
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # 2 GB ran out of memory (2026-10-07: installing ESO froze one, and with only
+  # 2 etcd members that took the whole cluster down).
+  memory_mb = 3072
 }
 
 module "tf_worker_01" {
@@ -193,4 +199,21 @@ import {
 import {
   to = cloudflare_dns_record.teleport["teleport_wildcard"]
   id = "${local.cloudflare["zone_id"]}/32aad1681f2f00d7e563ebf148184471"
+}
+
+# kids-app, migrated from the old cluster (ingress 192.168.0.202) to the
+# proxmox-homelab cluster. .30 is that cluster's ingress-nginx LoadBalancer IP
+# (first address of the MetalLB pool in k8s-addons).
+resource "cloudflare_dns_record" "study" {
+  zone_id = local.cloudflare["zone_id"]
+  name    = "study.homebytes.space"
+  type    = "A"
+  content = "192.168.0.30"
+  ttl     = 300
+  proxied = false
+}
+
+import {
+  to = cloudflare_dns_record.study
+  id = "${local.cloudflare["zone_id"]}/415363529cc0466b0751ba541811428f"
 }

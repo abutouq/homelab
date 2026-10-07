@@ -75,6 +75,14 @@ resource "proxmox_virtual_environment_vm" "this" {
   # stalled on writes (2026-10-06), while virtio-scsi guests recovered.
   scsi_hardware = "virtio-scsi-pci"
 
+  # Omitted unless set, so other VMs keep the template's 2 GB.
+  dynamic "memory" {
+    for_each = var.memory_mb == null ? [] : [1]
+    content {
+      dedicated = var.memory_mb
+    }
+  }
+
   initialization {
     # A custom user-data file replaces the generated one; base.yaml.tftpl
     # creates the ubuntu user in that case.

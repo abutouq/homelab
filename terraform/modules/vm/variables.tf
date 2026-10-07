@@ -85,3 +85,9 @@ variable "grafana_role" {
     error_message = "grafana_role must be one of: none, server."
   }
 }
+
+variable "memory_mb" {
+  type        = number
+  default     = null
+  description = "RAM in MB; null keeps the template's 2 GB. Changing it reboots the VM."
+}
