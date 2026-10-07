@@ -1,0 +1,127 @@
+# Keeps the credentials argocd-image-updater needs (see
+# argocd/argocd-image-updater.yaml) in sync with LocalStack Secrets Manager,
+# same "fetch from LocalStack, apply into a k8s Secret" pattern as
+# helm/kids-app's oauth-token-sync-cronjob - stock images, no custom image to
+# build/publish.
+#
+# Two credentials, two different shapes:
+#   - argocd-image-updater-secret / argocd.token: the ArgoCD API token, read
+#     by the controller itself via extraEnv (ARGOCD_TOKEN).
+#   - homelab-repo-creds: an ArgoCD *repository* credential (labeled
+#     argocd.argoproj.io/secret-type=repository), used by ArgoCD's own
+#     repo-server for the git write-back push. NOT a per-app secret the
+#     image-updater chart mounts directly - repoURL is https, so this is a
+#     GitHub PAT (contents: read/write), not the SSH signing key the chart's
+#     optional ssh-git-creds volume is for.
+#
+# Bootstrapping (both the placeholder secrets and the LocalStack entries
+# themselves) is automated end-to-end by
+# ansible/install_argocd_image_updater.yml - see that playbook for the one
+# still-manual step (minting the GitHub PAT itself, which only needs doing
+# once ever, not once per cluster).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: argocd-image-updater-secret-sync
+  namespace: argocd
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: argocd-image-updater-secret-sync
+          initContainers:
+            - name: fetch-argocd-token
+              image: amazon/aws-cli:2.17.62
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  value: "test"
+                - name: AWS_SECRET_ACCESS_KEY
+                  value: "test"
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  aws --endpoint-url=http://secrets-manager.homebytes.space:4566 --region us-east-1 \
+                    secretsmanager get-secret-value --secret-id argocd_image_updater_token \
+                    --query SecretString --output text > /shared/argocd-token
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+            - name: fetch-git-pat
+              image: amazon/aws-cli:2.17.62
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  value: "test"
+                - name: AWS_SECRET_ACCESS_KEY
+                  value: "test"
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  aws --endpoint-url=http://secrets-manager.homebytes.space:4566 --region us-east-1 \
+                    secretsmanager get-secret-value --secret-id argocd_image_updater_git_pat \
+                    --query SecretString --output text > /shared/git-pat
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          containers:
+            - name: sync-secrets
+              image: alpine/k8s:1.30.0
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  changed=false
+
+                  new_token="$(cat /shared/argocd-token)"
+                  current_token_hash="$(kubectl -n argocd get secret argocd-image-updater-secret -o jsonpath='{.data.argocd\.token}' 2>/dev/null | base64 -d | sha256sum | cut -d' ' -f1 || true)"
+                  new_token_hash="$(printf '%s' "$new_token" | sha256sum | cut -d' ' -f1)"
+                  if [ "$current_token_hash" != "$new_token_hash" ]; then
+                    kubectl -n argocd create secret generic argocd-image-updater-secret \
+                      --from-literal=argocd.token="$new_token" \
+                      --dry-run=client -o yaml | kubectl -n argocd apply -f -
+                    changed=true
+                  fi
+
+                  new_pat="$(cat /shared/git-pat)"
+                  current_pat_hash="$(kubectl -n argocd get secret homelab-repo-creds -o jsonpath='{.data.password}' 2>/dev/null | base64 -d | sha256sum | cut -d' ' -f1 || true)"
+                  new_pat_hash="$(printf '%s' "$new_pat" | sha256sum | cut -d' ' -f1)"
+                  if [ "$current_pat_hash" != "$new_pat_hash" ]; then
+                    kubectl -n argocd create secret generic homelab-repo-creds \
+                      --from-literal=type=git \
+                      --from-literal=url=https://github.com/abutouq/homelab.git \
+                      --from-literal=username=abutouq \
+                      --from-literal=password="$new_pat" \
+                      --dry-run=client -o yaml \
+                      | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
+                      | kubectl -n argocd apply -f -
+                    changed=true
+                  fi
+
+                  if [ "$changed" = "true" ]; then
+                    kubectl -n argocd rollout restart deployment/argocd-image-updater-controller
+                    echo "synced credentials, restarted argocd-image-updater"
+                  else
+                    echo "credentials unchanged, nothing to do"
+                  fi
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+          volumes:
+            - name: shared
+              emptyDir: {}
