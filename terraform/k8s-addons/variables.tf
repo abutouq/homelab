@@ -50,3 +50,9 @@ variable "proxmox_node_zones" {
     "tf-worker-02"        = "pve-02"
   }
 }
+
+variable "kubernetes_api_url" {
+  type        = string
+  description = "This cluster's API (kube-vip VIP), as reached from Vault for TokenReview"
+  default     = "https://192.168.0.19:6443"
+}
