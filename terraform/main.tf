@@ -29,6 +29,23 @@ resource "vault_kv_secret_v2" "teleport_join_token" {
   })
 }
 
+# Grafana admin on tf-grafana-01, published to Vault so you can look it up:
+#   vault kv get secret/apps/grafana
+resource "random_password" "grafana_admin" {
+  length  = 32
+  special = false
+}
+
+resource "vault_kv_secret_v2" "grafana_admin" {
+  mount = "secret"
+  name  = "apps/grafana"
+  data_json = jsonencode({
+    url            = "http://192.168.0.23:3000"
+    admin_user     = "admin"
+    admin_password = random_password.grafana_admin.result
+  })
+}
+
 module "tf_control_plane_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-01"
@@ -99,21 +116,6 @@ module "tf_worker_02" {
   cpu_type = "x86-64-v3"
 }
 
-module "tf_external_services_01" {
-  source              = "${path.root}/modules/vm"
-  vm_name             = "tf-external-services-01"
-  vm_id               = 9005
-  node_name           = "external-services" # node .201
-  template_vm_id      = 9200
-  ip_address          = "192.168.0.20/24"
-  gateway             = "192.168.0.1"
-  ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
-  teleport_role       = "agent"
-  teleport_join_token = random_password.teleport_join_token.result
-  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
-  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
-}
-
 module "tf_teleport_apps_01" {
   source               = "${path.root}/modules/vm"
   vm_name              = "tf-teleport-apps-01"
@@ -162,6 +164,14 @@ module "tf_grafana_01" {
   teleport_join_token = random_password.teleport_join_token.result
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # Grafana + Prometheus + Loki on one VM (was 2 GB for Grafana alone).
+  memory_mb              = 3072
+  grafana_admin_password = random_password.grafana_admin.result
+  # Every *.json under grafana-dashboards/ (subdirectory = Grafana folder).
+  grafana_dashboards = {
+    for f in fileset("${path.root}/grafana-dashboards", "**/*.json") :
+    f => filebase64("${path.root}/grafana-dashboards/${f}")
+  }
 }
 
 resource "cloudflare_dns_record" "vault" {

@@ -103,3 +103,22 @@ variable "cpu_cores" {
   default     = 2
   description = "Only applied together with cpu_type; matches the templates' 2 cores."
 }
+
+variable "grafana_admin_password" {
+  type        = string
+  default     = null
+  sensitive   = true
+  description = "Grafana admin password (grafana role). Applied when Grafana first creates its database, i.e. on a fresh VM."
+}
+
+variable "grafana_dashboards" {
+  type        = map(string)
+  default     = {}
+  description = "Dashboard files for the grafana role: relative path (subdirectory = Grafana folder) -> base64 JSON."
+}
+
+variable "grafana_root_url" {
+  type        = string
+  default     = "https://grafana.teleport.homebytes.space/"
+  description = "Public URL Grafana is browsed at (grafana role): the Teleport app served by the kube agent. Must match, or logins fail with \"origin not allowed\"."
+}

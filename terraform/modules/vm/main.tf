@@ -23,6 +23,12 @@ locals {
     cloudflare_api_token = var.cloudflare_api_token == null ? "" : var.cloudflare_api_token
     acme_staging         = var.acme_staging
     image_baked          = var.image_baked
+    # grafana role
+    grafana_admin_password = var.grafana_admin_password == null ? "" : var.grafana_admin_password
+    grafana_dashboards     = var.grafana_dashboards
+    grafana_root_url       = var.grafana_root_url
+    grafana_public_host    = regex("^https?://([^/:]+)", var.grafana_root_url)[0]
+    vm_ip                  = split("/", var.ip_address)[0]
   }
 }
 
@@ -128,6 +134,10 @@ resource "proxmox_virtual_environment_vm" "this" {
     precondition {
       condition     = var.image_baked || (var.vault_role == "none" && var.grafana_role == "none" && var.teleport_role != "control_plane")
       error_message = "The vault, grafana and teleport control_plane roles need a Packer image (image_baked = true); their cloud-init no longer installs packages."
+    }
+    precondition {
+      condition     = var.grafana_role == "none" || nonsensitive(var.grafana_admin_password != null)
+      error_message = "grafana_admin_password is required when grafana_role = \"server\" (otherwise Grafana keeps admin/admin)."
     }
     precondition {
       condition     = var.teleport_role == "none" || nonsensitive(var.teleport_join_token != null)
