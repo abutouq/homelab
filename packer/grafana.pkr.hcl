@@ -1,6 +1,14 @@
-# Grafana image, cloned from the ubuntu-base template (9300). Build with: make grafana
-# Baked in: the Grafana OSS package from the official apt repo.
-# Left to cloud-init: grafana.ini overrides, datasources, admin credentials, starting Grafana.
+# Monitoring image (Grafana + Prometheus + Loki), cloned from the ubuntu-base
+# template (9300). Build with: make grafana
+# Baked in: Grafana OSS and Loki from Grafana's apt repo; Prometheus from the
+# official release tarball (pinned, checksum-verified) with a systemd unit.
+# All three are installed disabled. Left to cloud-init: their configs,
+# datasources, dashboards, admin credentials, and starting them.
+
+variable "prometheus_version" {
+  type    = string
+  default = "3.5.0" # LTS
+}
 
 source "proxmox-clone" "grafana" {
   proxmox_url              = "https://192.168.0.201:8006/api2/json"
@@ -49,10 +57,32 @@ build {
       "curl -fsSL https://apt.grafana.com/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/grafana.gpg",
       "echo 'deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main' | sudo tee /etc/apt/sources.list.d/grafana.list",
       "sudo apt-get update -qq",
-      "sudo -E apt-get install -y grafana",
-      # Config arrives per node via cloud-init; don't start Grafana with the package defaults.
-      "sudo systemctl disable grafana-server",
-      "grafana-server --version"
+      "sudo -E apt-get install -y grafana loki",
+      # Config arrives per node via cloud-init; don't start anything with the package defaults.
+      "sudo systemctl disable --now grafana-server loki",
+      "grafana-server --version",
+      "loki --version | head -1"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "files/prometheus.service"
+    destination = "/tmp/prometheus.service"
+  }
+
+  provisioner "shell" {
+    environment_vars = ["PROM=${var.prometheus_version}"]
+    inline = [
+      "cd /tmp",
+      "curl -fsSLO https://github.com/prometheus/prometheus/releases/download/v$PROM/prometheus-$PROM.linux-amd64.tar.gz",
+      "curl -fsSL https://github.com/prometheus/prometheus/releases/download/v$PROM/sha256sums.txt | grep -F \" prometheus-$PROM.linux-amd64.tar.gz\" | sha256sum -c -",
+      "tar xzf prometheus-$PROM.linux-amd64.tar.gz",
+      "sudo install -m 0755 prometheus-$PROM.linux-amd64/prometheus prometheus-$PROM.linux-amd64/promtool /usr/local/bin/",
+      "sudo useradd --system --no-create-home --shell /usr/sbin/nologin prometheus",
+      "sudo install -d -o prometheus -g prometheus /etc/prometheus /var/lib/prometheus",
+      "sudo install -m 0644 /tmp/prometheus.service /etc/systemd/system/prometheus.service",
+      "sudo systemctl daemon-reload",
+      "prometheus --version | head -1"
     ]
   }
 
