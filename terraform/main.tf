@@ -78,6 +78,8 @@ module "tf_worker_01" {
   teleport_join_token = random_password.teleport_join_token.result
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # kvm64 hides AVX2 etc.; kids-app's claude CLI spins forever without them.
+  cpu_type = "x86-64-v3"
 }
 
 module "tf_worker_02" {
@@ -93,6 +95,8 @@ module "tf_worker_02" {
   teleport_join_token = random_password.teleport_join_token.result
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  # kvm64 hides AVX2 etc.; kids-app's claude CLI spins forever without them.
+  cpu_type = "x86-64-v3"
 }
 
 module "tf_external_services_01" {

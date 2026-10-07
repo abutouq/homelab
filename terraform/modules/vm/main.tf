@@ -75,6 +75,18 @@ resource "proxmox_virtual_environment_vm" "this" {
   # stalled on writes (2026-10-06), while virtio-scsi guests recovered.
   scsi_hardware = "virtio-scsi-pci"
 
+  # Omitted unless cpu_type is set, so other VMs keep the template's CPU. The
+  # default (kvm64) hides SSE4.2/AVX/AVX2 from guests; binaries built for
+  # x86-64-v3 (e.g. the claude CLI) then spin forever instead of starting.
+  # cores is restated because the provider's cpu block defaults it to 1.
+  dynamic "cpu" {
+    for_each = var.cpu_type == null ? [] : [1]
+    content {
+      type  = var.cpu_type
+      cores = var.cpu_cores
+    }
+  }
+
   # Omitted unless set, so other VMs keep the template's 2 GB.
   dynamic "memory" {
     for_each = var.memory_mb == null ? [] : [1]

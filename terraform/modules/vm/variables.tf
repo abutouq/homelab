@@ -91,3 +91,15 @@ variable "memory_mb" {
   default     = null
   description = "RAM in MB; null keeps the template's 2 GB. Changing it reboots the VM."
 }
+
+variable "cpu_type" {
+  type        = string
+  default     = null
+  description = "Proxmox CPU type, e.g. \"x86-64-v3\" (needs AVX2 on the host: pve and pve-02 yes, external-services no) or \"host\". null keeps the template's default (kvm64). Changing it reboots the VM."
+}
+
+variable "cpu_cores" {
+  type        = number
+  default     = 2
+  description = "Only applied together with cpu_type; matches the templates' 2 cores."
+}
