@@ -22,7 +22,7 @@ Vault runs on `tf_vault_01`, a VM in this same stack. If Vault is down or sealed
 
 ### Teleport kube agent (`k8s-addons/teleport.tf`)
 
-The new cluster joins Teleport as `proxmox-homelab`. Its token (`kube_token` in `secret/homelab/teleport`, created in `main.tf`) only has the Kube role and is not a static token in the control plane's cloud-init, so register it once after the first `terraform apply` of the root stack:
+The new cluster joins Teleport as `proxmox-homelab`. The agent also serves Teleport app access (ArgoCD, Grafana, …), declared in `local.teleport_apps` in that file. Its token (`kube_token` in `secret/homelab/teleport`, created in `main.tf`) has the Kube and App roles and is not a static token in the control plane's cloud-init, so register it once after the first `terraform apply` of the root stack (and again after any control-plane rebuild):
 
 ```bash
 TOKEN=$(vault kv get -field=kube_token secret/homelab/teleport)
@@ -32,12 +32,14 @@ version: v2
 metadata:
   name: $TOKEN
 spec:
-  roles: [Kube]
+  roles: [Kube, App]
   join_method: token
 EOF
 ```
 
-Then run `terraform -chdir=k8s-addons apply`. Without the registration the agent pod fails with "token not found". A rebuilt control plane needs the registration again.
+Then run `terraform -chdir=k8s-addons apply`. Without the registration the agent pod fails with "token is expired or not found".
+
+Pods resolve `teleport.homebytes.space` through Pi-hole and Cloudflare, not the nodes' `/etc/hosts` pins, so the agent only reaches this control plane because the Cloudflare records (`cloudflare_dns_record.teleport`) point at it.
 
 `main.tf` has one `module` block per VM, all using `./modules/vm`:
 
@@ -94,7 +96,7 @@ Addons, in the order they actually get applied (via `depends_on`, since `helm_re
 3. **`ingress-nginx.tf`** — depends on MetalLB's `L2Advertisement`; `LoadBalancer` type, auto-assigned the first free pool IP (currently `192.168.0.30`).
 4. **`cert-manager.tf`** — controller + CRDs only. No `ClusterIssuer` yet — a deliberate follow-up once this base install is confirmed working, not an oversight.
 5. **`metrics-server.tf`** — `--kubelet-insecure-tls`, since kubelet's serving certs here are kubeadm's self-signed ones.
-6. **`argocd.tf`** — `kubernetes_namespace` + `helm_release`, exposed via a **pinned** MetalLB IP (`192.168.0.31`, via the `metallb.io/loadBalancerIPs` annotation — `.30` was already claimed by ingress-nginx) rather than an `Ingress`. Proxied through the existing homelab's Teleport `app_service` (`../ansible/teleport_apps.yml`) instead of exposed directly on the LAN; `--insecure` because TLS terminates at Teleport's proxy, not here. `values.yaml` supplies replica counts, HPA settings, and the `global.domain`.
+6. **`argocd.tf`** — `kubernetes_namespace` + `helm_release`, exposed via a **pinned** MetalLB IP (`192.168.0.31`, via the `metallb.io/loadBalancerIPs` annotation — `.30` was already claimed by ingress-nginx) rather than an `Ingress`. Reached through Teleport app access via the kube agent (`teleport.tf`, at `argocd-server.argocd.svc`); `--insecure` because TLS terminates at Teleport's proxy, not here. `values.yaml` supplies replica counts, HPA settings, and the `global.domain`.
 
 ### Running it
 
@@ -111,7 +113,7 @@ terraform apply
 2. `../ansible/k8s_node_setup.yml` → OS/package prep on all 4 VMs.
 3. `../ansible/bootstrap_new_cluster.yml` → kube-vip + `kubeadm init`/`join`, produces `~/.kube/config-new-cluster`.
 4. `terraform/k8s-addons/` → `apply` — CNI + addons, including ArgoCD.
-5. `../ansible/manage_teleport_app.yml` → registers ArgoCD (and anything else added to `teleport_apps.yml`) for external access.
+5. Teleport apps come from `local.teleport_apps` in `k8s-addons/teleport.tf`, served by the kube agent. `../ansible/manage_teleport_app.yml` only manages the old Teleport on 192.168.0.158.
 
 ## Gotchas learned the hard way
 

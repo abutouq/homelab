@@ -7,10 +7,10 @@ resource "random_password" "teleport_join_token" {
 }
 
 # Join token for the kube agent in terraform/k8s-addons. Kept apart from the shared
-# node/app token above because it grants only the Kube role. Unlike that one it is NOT
-# a static token in the control plane's cloud-init (changing that would mean rebuilding
-# the control plane and every agent), so it must be registered once with `tctl create`,
-# see terraform/README.md.
+# node/app token above because it grants only what that agent runs (Kube, App). Unlike that one it is NOT
+# a static token in the control plane's cloud-init (changing that would rebuild the
+# control plane with a new CA, orphaning every agent), so it is registered once per
+# control-plane build with `tctl create`, see terraform/README.md.
 resource "random_password" "teleport_kube_token" {
   length  = 40
   special = false
@@ -161,4 +161,36 @@ resource "cloudflare_dns_record" "vault" {
   content = split("/", module.tf_vault_01.ip_address)[0]
   ttl     = 300
   proxied = false
+}
+
+# Teleport's public names, cut over from the old server (192.168.0.158) to
+# tf-teleport-apps-01. The wildcard serves Teleport app access (<app>.teleport...).
+locals {
+  teleport_dns_names = {
+    teleport          = "teleport.homebytes.space"
+    teleport_wildcard = "*.teleport.homebytes.space"
+  }
+}
+
+resource "cloudflare_dns_record" "teleport" {
+  for_each = local.teleport_dns_names
+  zone_id  = local.cloudflare["zone_id"]
+  name     = each.value
+  type     = "A"
+  content  = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  ttl      = 300
+  proxied  = false
+}
+
+# The records were created by hand in Cloudflare; adopt them instead of adding
+# duplicates (two A records for one name would round-robin to the old server).
+# Safe to delete these blocks once the import has been applied.
+import {
+  to = cloudflare_dns_record.teleport["teleport"]
+  id = "${local.cloudflare["zone_id"]}/df471d3593e70876a4f8805d3a70802b"
+}
+
+import {
+  to = cloudflare_dns_record.teleport["teleport_wildcard"]
+  id = "${local.cloudflare["zone_id"]}/32aad1681f2f00d7e563ebf148184471"
 }
