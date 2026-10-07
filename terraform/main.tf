@@ -221,3 +221,19 @@ import {
   to = cloudflare_dns_record.study
   id = "${local.cloudflare["zone_id"]}/415363529cc0466b0751ba541811428f"
 }
+
+# ase-market, migrated from the old cluster (ingress 192.168.0.202) to the
+# proxmox-homelab cluster's ingress-nginx (.30), like kids-app above.
+resource "cloudflare_dns_record" "ase_market" {
+  zone_id = local.cloudflare["zone_id"]
+  name    = "ase-market.homebytes.space"
+  type    = "A"
+  content = "192.168.0.30"
+  ttl     = 300
+  proxied = false
+}
+
+import {
+  to = cloudflare_dns_record.ase_market
+  id = "${local.cloudflare["zone_id"]}/6d1c867411df97f720a82db164da52b1"
+}

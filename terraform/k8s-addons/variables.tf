@@ -56,3 +56,9 @@ variable "kubernetes_api_url" {
   description = "This cluster's API (kube-vip VIP), as reached from Vault for TokenReview"
   default     = "https://192.168.0.19:6443"
 }
+
+variable "production_nodes" {
+  type        = list(string)
+  description = "Nodes labelled node.kubernetes.io/environment=production (scheduling target for ase-market)"
+  default     = ["tf-worker-01", "tf-worker-02"]
+}
