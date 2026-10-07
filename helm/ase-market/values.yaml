@@ -179,6 +179,7 @@ externalSecrets:
   refreshInterval: 15m
   aseCredentialsKey: apps/ase-market
   registrySecretKey: apps/dockerhub-aabutouq
+  postgresKey: apps/ase-market-postgres
   registrySecretName: aabutouq-registry-secret
 
 secretsSync:
@@ -214,7 +215,9 @@ postgresql:
   enabled: true
   database: stocks
   username: stocks
-  password: stocks
+  # No password here: with externalSecrets.enabled it comes from Vault
+  # (externalSecrets.postgresKey); otherwise pass --set postgresql.password=...
+  password: ""
   storage: 5Gi
   storageClass: ""
   resources:
