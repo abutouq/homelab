@@ -50,15 +50,3 @@ variable "proxmox_node_zones" {
     "tf-worker-02"        = "pve-02"
   }
 }
-
-variable "proxmox_csi_token_id" {
-  type        = string
-  description = "Proxmox API token ID for the CSI plugin (least-privilege CSI role, not terraform@pve)"
-  default     = "kubernetes-csi@pve!csi"
-}
-
-variable "proxmox_csi_token_secret" {
-  type        = string
-  description = "Secret for proxmox_csi_token_id -- supply via a gitignored terraform.tfvars in this directory"
-  sensitive   = true
-}

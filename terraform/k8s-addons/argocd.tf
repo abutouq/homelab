@@ -16,9 +16,8 @@ resource "helm_release" "argocd" {
   namespace        = kubernetes_namespace.argocd.metadata[0].name
   create_namespace = false
 
-  # Exposed via a pinned MetalLB LoadBalancer IP rather than Ingress —
-  # Teleport's app_service (on 192.168.0.158, see ansible/teleport_apps.yml)
-  # proxies to this address directly. --insecure means argocd-server serves
+  # Exposed via a pinned MetalLB LoadBalancer IP rather than Ingress. Teleport
+  # app access goes through the in-cluster service instead (teleport.tf). --insecure means argocd-server serves
   # plain HTTP; Teleport terminates TLS for end users at its own proxy.
   set = [
     {

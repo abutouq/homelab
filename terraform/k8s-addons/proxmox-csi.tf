@@ -30,6 +30,13 @@ resource "kubernetes_labels" "proxmox_topology" {
   }
 }
 
+# API token for the least-privilege kubernetes-csi@pve user (role CSI), stored
+# in Vault when it was created. Same pattern as teleport.tf.
+data "vault_kv_secret_v2" "proxmox_csi" {
+  mount = "secret"
+  name  = "homelab/proxmox-csi"
+}
+
 resource "helm_release" "proxmox_csi" {
   depends_on = [kubernetes_labels.proxmox_topology]
   name       = "proxmox-csi-plugin"
@@ -42,7 +49,7 @@ resource "helm_release" "proxmox_csi" {
       clusters = [{
         url      = var.proxmox_api_url
         insecure = true # Proxmox's self-signed API cert
-        token_id = var.proxmox_csi_token_id
+        token_id = data.vault_kv_secret_v2.proxmox_csi.data["token_id"]
         region   = var.proxmox_region
       }]
     }
@@ -60,7 +67,7 @@ resource "helm_release" "proxmox_csi" {
   set_sensitive = [
     {
       name  = "config.clusters[0].token_secret"
-      value = var.proxmox_csi_token_secret
+      value = data.vault_kv_secret_v2.proxmox_csi.data["token_secret"]
     }
   ]
 }
