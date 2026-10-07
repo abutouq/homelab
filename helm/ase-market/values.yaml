@@ -168,6 +168,19 @@ ase:
   # must be created out-of-band; when true, the CronJob below keeps it in sync.
   enabled: true
 
+externalSecrets:
+  # Sync "<fullname>-ase-credentials" and the image pull secret from Vault
+  # through the External Secrets Operator (ClusterSecretStore "vault", set up
+  # by terraform/k8s-addons). Replaces secretsSync/registrySecretSync below;
+  # turned on per cluster from its ArgoCD Application. Rotate with
+  # `vault kv put`, then restart the pods (they read the values at start).
+  enabled: false
+  storeName: vault
+  refreshInterval: 15m
+  aseCredentialsKey: apps/ase-market
+  registrySecretKey: apps/dockerhub-aabutouq
+  registrySecretName: aabutouq-registry-secret
+
 secretsSync:
   # Keeps the "<fullname>-ase-credentials" Secret in sync with an entry in a
   # LocalStack-backed Secrets Manager (see ../../external-services/README.md).

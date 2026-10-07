@@ -1,0 +1,32 @@
+# ArgoCD Application: ase-market
+#
+# Managed by the app-of-apps on the tf-managed proxmox-homelab cluster
+# (terraform/k8s-addons). Same release name and namespace as on the old
+# cluster (ase-market-helm), so Secret and Service names don't change.
+# Secrets come from Vault via External Secrets Operator, not LocalStack.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ase-market-helm
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abutouq/homelab.git
+    targetRevision: main
+    path: helm/ase-market
+    helm:
+      valuesObject:
+        externalSecrets:
+          enabled: true
+        registrySecretSync:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ase-market-helm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
