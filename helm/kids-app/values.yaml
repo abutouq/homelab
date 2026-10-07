@@ -187,6 +187,17 @@ persistence:
   # Use an existing PVC instead of creating one.
   existingClaim: ""
 
+externalSecrets:
+  # Sync kids-app-secrets and gitlab-registry-secret from Vault through the
+  # External Secrets Operator (ClusterSecretStore "vault", set up by
+  # terraform/k8s-addons). Replaces the LocalStack sync CronJobs below; turned
+  # on per cluster from its ArgoCD Application. Rotate with `vault kv put`.
+  enabled: false
+  storeName: vault
+  refreshInterval: 15m
+  appSecretKey: apps/kids-app
+  registrySecretKey: apps/gitlab-registry
+
 registrySecretSync:
   # Keeps the "gitlab-registry-secret" Secret (referenced by imagePullSecrets
   # above) in sync with a .dockerconfigjson blob stored in LocalStack Secrets

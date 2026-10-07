@@ -2,8 +2,9 @@
 #
 # Deploys the kids-app Helm chart (helm/kids-app) to the kids-app namespace.
 #
-# Apply this Application once:
-#   kubectl apply -f argocd/kids-app.yaml
+# Managed by the app-of-apps on the tf-managed proxmox-homelab cluster
+# (terraform/k8s-addons). Secrets come from Vault via External Secrets
+# Operator here, not the LocalStack sync CronJobs the old cluster uses.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,6 +24,14 @@ spec:
     repoURL: https://github.com/abutouq/homelab.git
     targetRevision: main
     path: helm/kids-app
+    helm:
+      valuesObject:
+        externalSecrets:
+          enabled: true
+        registrySecretSync:
+          enabled: false
+        oauthTokenSync:
+          enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: kids-app
