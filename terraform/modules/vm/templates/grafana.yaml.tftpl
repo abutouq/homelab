@@ -20,6 +20,99 @@ write_files:
         - job_name: grafana
           static_configs:
             - targets: ['127.0.0.1:3000']
+%{ if length(node_targets) > 0 ~}
+        # Hosts running node-exporter directly (Proxmox nodes: hwmon temps etc.)
+        - job_name: proxmox-hosts
+          static_configs:
+            - targets: [${join(", ", formatlist("'%s'", node_targets))}]
+%{ endif ~}
+%{ if k8s_api_server != "" ~}
+        # --- K8s cluster, all through the API server proxy (this VM has no
+        # route to pod IPs). Identity: monitoring/prometheus-external.
+        - job_name: node-exporter
+          scheme: https
+          authorization: {credentials_file: /etc/prometheus/k8s-token}
+          tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          kubernetes_sd_configs:
+            - role: pod
+              api_server: https://${k8s_api_server}
+              authorization: {credentials_file: /etc/prometheus/k8s-token}
+              tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+              namespaces: {names: [monitoring]}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+              regex: prometheus-node-exporter
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: __metrics_path__
+              replacement: /api/v1/namespaces/monitoring/pods/$1:9100/proxy/metrics
+            # host:port, as the node dashboards' $node:$port variables expect
+            - source_labels: [__meta_kubernetes_pod_host_ip]
+              target_label: instance
+              replacement: $1:9100
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: node
+            - target_label: __address__
+              replacement: ${k8s_api_server}
+        - job_name: kubelet
+          scheme: https
+          authorization: {credentials_file: /etc/prometheus/k8s-token}
+          tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          kubernetes_sd_configs:
+            - role: node
+              api_server: https://${k8s_api_server}
+              authorization: {credentials_file: /etc/prometheus/k8s-token}
+              tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_node_name]
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/$1/proxy/metrics
+            - source_labels: [__meta_kubernetes_node_name]
+              target_label: instance
+            - target_label: __address__
+              replacement: ${k8s_api_server}
+        - job_name: cadvisor
+          scheme: https
+          authorization: {credentials_file: /etc/prometheus/k8s-token}
+          tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          kubernetes_sd_configs:
+            - role: node
+              api_server: https://${k8s_api_server}
+              authorization: {credentials_file: /etc/prometheus/k8s-token}
+              tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_node_name]
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+            - source_labels: [__meta_kubernetes_node_name]
+              target_label: instance
+            - target_label: __address__
+              replacement: ${k8s_api_server}
+        - job_name: kube-state-metrics
+          scheme: https
+          authorization: {credentials_file: /etc/prometheus/k8s-token}
+          tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          metrics_path: /api/v1/namespaces/monitoring/services/kube-state-metrics:8080/proxy/metrics
+          honor_labels: true
+          static_configs:
+            - targets: ['${k8s_api_server}']
+        - job_name: apiserver
+          scheme: https
+          authorization: {credentials_file: /etc/prometheus/k8s-token}
+          tls_config: {ca_file: /etc/prometheus/k8s-ca.crt}
+          static_configs:
+            - targets: ['${k8s_api_server}']
+
+  - path: /etc/prometheus/k8s-token
+    owner: root:prometheus
+    permissions: '0640'
+    content: ${k8s_token}
+  - path: /etc/prometheus/k8s-ca.crt
+    owner: root:prometheus
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(k8s_ca_crt)}
+%{ endif ~}
 
   # --- Loki (single binary, filesystem storage, 30d retention) ----------------
   - path: /etc/loki/config.yml

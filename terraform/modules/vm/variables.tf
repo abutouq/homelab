@@ -122,3 +122,20 @@ variable "grafana_root_url" {
   default     = "https://grafana.teleport.homebytes.space/"
   description = "Public URL Grafana is browsed at (grafana role): the Teleport app served by the kube agent. Must match, or logins fail with \"origin not allowed\"."
 }
+
+variable "prometheus_k8s" {
+  type = object({
+    api_server = string # host:port of the K8s API (kube-vip VIP)
+    token      = string
+    ca_crt     = string
+  })
+  default     = null
+  sensitive   = true
+  description = "grafana role: read-only K8s identity (from k8s-addons via Vault) for scraping the cluster through the API proxy. null = no cluster jobs."
+}
+
+variable "prometheus_node_targets" {
+  type        = list(string)
+  default     = []
+  description = "grafana role: host:port node-exporter targets scraped directly (e.g. the Proxmox hosts)."
+}

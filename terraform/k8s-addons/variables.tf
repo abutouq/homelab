@@ -12,7 +12,7 @@ variable "pod_cidr" {
 
 variable "metallb_pool" {
   type        = list(string)
-  description = "IP range MetalLB hands out for this cluster's LoadBalancer services. Must not overlap the EXISTING cluster's MetalLB pool (192.168.0.200-250, see k8s-services/metallb-config.yaml)."
+  description = "IP range MetalLB hands out for this cluster's LoadBalancer services. Must not overlap the EXISTING cluster's MetalLB pool (192.168.0.200-250, applied by hand on that cluster)."
   default     = ["192.168.0.30-192.168.0.69"]
 }
 

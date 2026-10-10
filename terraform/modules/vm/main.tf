@@ -29,6 +29,10 @@ locals {
     grafana_root_url       = var.grafana_root_url
     grafana_public_host    = regex("^https?://([^/:]+)", var.grafana_root_url)[0]
     vm_ip                  = split("/", var.ip_address)[0]
+    k8s_api_server         = var.prometheus_k8s == null ? "" : var.prometheus_k8s.api_server
+    k8s_token              = var.prometheus_k8s == null ? "" : var.prometheus_k8s.token
+    k8s_ca_crt             = var.prometheus_k8s == null ? "" : var.prometheus_k8s.ca_crt
+    node_targets           = var.prometheus_node_targets
   }
 }
 

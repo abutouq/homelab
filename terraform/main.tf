@@ -149,6 +149,21 @@ module "tf_vault_01" {
   cloudflare_api_token = local.cloudflare["api_token"]
 }
 
+# Read-only K8s identity for Prometheus on tf-grafana-01, written to Vault by
+# k8s-addons/monitoring.tf. Read only if it exists: on a from-scratch build the
+# cluster doesn't exist yet, so the VM comes up without cluster scrape jobs and
+# the next apply (after k8s-addons) adds them.
+data "vault_kv_secrets_list_v2" "homelab" {
+  mount = "secret"
+  name  = "homelab"
+}
+
+data "vault_kv_secret_v2" "prometheus_k8s" {
+  count = contains(nonsensitive(data.vault_kv_secrets_list_v2.homelab.names), "prometheus-k8s") ? 1 : 0
+  mount = "secret"
+  name  = "homelab/prometheus-k8s"
+}
+
 module "tf_grafana_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-grafana-01"
@@ -172,6 +187,13 @@ module "tf_grafana_01" {
     for f in fileset("${path.root}/grafana-dashboards", "**/*.json") :
     f => filebase64("${path.root}/grafana-dashboards/${f}")
   }
+  prometheus_k8s = length(data.vault_kv_secret_v2.prometheus_k8s) == 0 ? null : {
+    api_server = data.vault_kv_secret_v2.prometheus_k8s[0].data["api_server"]
+    token      = data.vault_kv_secret_v2.prometheus_k8s[0].data["token"]
+    ca_crt     = data.vault_kv_secret_v2.prometheus_k8s[0].data["ca_crt"]
+  }
+  # node-exporter on the Proxmox hosts themselves (installed by hand, like the templates)
+  prometheus_node_targets = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100"]
 }
 
 resource "cloudflare_dns_record" "vault" {

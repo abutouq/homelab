@@ -87,7 +87,7 @@ A **separate** root module — only applicable *after* the cluster exists. `prov
 `variables.tf`:
 - `kubeconfig_path` — default `~/.kube/config-new-cluster`.
 - `pod_cidr` — default `10.100.0.0/16`. **Must exactly match** the `--pod-network-cidr` passed to `kubeadm init` in `ansible/bootstrap_new_cluster.yml`.
-- `metallb_pool` — default `192.168.0.30-192.168.0.69`. Must not overlap the *existing* cluster's MetalLB pool (`192.168.0.200-250`, see `../k8s-services/metallb-config.yaml`) — same flat LAN, two independent clusters.
+- `metallb_pool` — default `192.168.0.30-192.168.0.69`. Must not overlap the *existing* cluster's MetalLB pool (`192.168.0.200-250`, applied by hand on that cluster) — same flat LAN, two independent clusters.
 
 Addons, in the order they actually get applied (via `depends_on`, since `helm_release` waits for pod rollout by default and nothing schedules without CNI):
 
