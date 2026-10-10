@@ -192,7 +192,7 @@ module "tf_grafana_01" {
     token      = data.vault_kv_secret_v2.prometheus_k8s[0].data["token"]
     ca_crt     = data.vault_kv_secret_v2.prometheus_k8s[0].data["ca_crt"]
   }
-  # node-exporter on the Proxmox hosts themselves (installed by hand, like the templates)
+  # node-exporter on the Proxmox hosts themselves (installed by bootstrap/)
   prometheus_node_targets = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100"]
 }
 

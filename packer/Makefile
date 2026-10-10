@@ -3,10 +3,14 @@
 #   make teleport          build one role image (builds base first if missing)
 #   make rebuild-all       delete and rebuild every image, base first
 #   make rebuild-teleport  delete that role's template on the node, then build it again
-# The token secret comes from the gitignored secrets.auto.pkrvars.hcl.
+# packer@pve's token is read from Vault (secret/homelab/packer, created by ../terraform/bootstrap);
+# run `vault login` first.
 # To add an image: write <name>.pkr.hcl, then add it to ROLES and give it an ID_<name> below.
 
 PVE_HOST := root@192.168.0.201
+
+export VAULT_ADDR ?= https://vault.homebytes.space
+export VAULT_TOKEN ?= $(shell cat ~/.vault-token 2>/dev/null)
 BASE_ID  := 9300
 
 ROLES := vault teleport grafana

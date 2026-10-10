@@ -30,8 +30,9 @@ resource "kubernetes_labels" "proxmox_topology" {
   }
 }
 
-# API token for the least-privilege kubernetes-csi@pve user (role CSI), stored
-# in Vault when it was created. Same pattern as teleport.tf.
+# API token for the least-privilege kubernetes-csi@pve user (role CSI). The
+# user, role and token are created by ../bootstrap, which puts the token
+# in Vault. Same read pattern as teleport.tf.
 data "vault_kv_secret_v2" "proxmox_csi" {
   mount = "secret"
   name  = "homelab/proxmox-csi"

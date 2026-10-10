@@ -7,17 +7,18 @@ packer {
   }
 }
 
-# Only the token secret is a variable -- supply it via the gitignored secrets.auto.pkrvars.hcl.
-variable "proxmox_api_token_secret" {
-  type      = string
-  sensitive = true
+# packer@pve's API token, created by ../terraform/bootstrap and read from Vault
+# (needs VAULT_ADDR and VAULT_TOKEN; the Makefile sets both from `vault login`).
+local "proxmox_api_token_secret" {
+  expression = vault("secret/data/homelab/packer", "token_secret")
+  sensitive  = true
 }
 
 source "proxmox-iso" "ubuntu" {
   # Proxmox API connection (packer@pve user, Packer role)
   proxmox_url              = "https://192.168.0.201:8006/api2/json"
   username                 = "packer@pve!packer"
-  token                    = var.proxmox_api_token_secret
+  token                    = local.proxmox_api_token_secret
   insecure_skip_tls_verify = true  # self-signed cert
   task_timeout             = "10m" # Proxmox tasks (ISO attach, template conversion) can exceed the 1m default
   node                     = "external-services"

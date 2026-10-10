@@ -1,14 +1,15 @@
 # Terraform
 
-Two independent Terraform root modules, run in sequence with Ansible steps in between — this isn't one `terraform apply` end to end, see [Order of operations](#order-of-operations-across-the-whole-toolchain).
+Three Terraform root modules, run in sequence (with Ansible still bootstrapping Kubernetes in between) — see [Order of operations](#order-of-operations-across-the-whole-toolchain).
 
+- **`terraform/bootstrap/`** — Proxmox-level setup the other stacks depend on: the `TerraformProv`, `Packer` and `CSI` roles, the `terraform@pve`, `packer@pve` and `kubernetes-csi@pve` users and their ACLs, `snippets` content on `local`, node-exporter on the hosts, and each user's API token — created once and piped straight into Vault (`secret/homelab/proxmox`, `homelab/packer`, `homelab/proxmox-csi`), never through Terraform state. Needs only root SSH to the nodes and a `vault login`; every step is idempotent. Rotate a token with `vault kv delete secret/<entry>` + `terraform apply -replace='terraform_data.token["<user>"]'`.
 - **`terraform/`** (this directory) — provisions Proxmox VMs for a second, standalone HA Kubernetes cluster (control-plane + worker nodes), separate from the existing cluster in `../ansible/`.
 - **`terraform/k8s-addons/`** — installs cluster addons (CNI, MetalLB, ingress, cert-manager, metrics-server, ArgoCD) into that cluster once it exists. Own provider config, own state.
 
 ## Prerequisites
 
-- Proxmox cluster `prx-cluster-01`: node `pve` (192.168.0.2), node `pve-02` (192.168.0.200), node `external-services` (192.168.0.201) — third node added for real quorum-based HA, and also hosts standalone VMs for external services (see the `tf_external_services_*` modules below), separate from the tf-managed K8s cluster.
-- A least-privilege Proxmox API token for Terraform: user `terraform@pve`, role `TerraformProv` (VM lifecycle + datastore privileges), ACL granted at `/` with `propagate: 1` — this covers every current and future cluster node automatically, no per-node token setup needed. Never use `root@pam`'s own credentials here.
+- Proxmox cluster `prx-cluster-01`: node `pve` (192.168.0.2), node `pve-02` (192.168.0.200), node `external-services` (192.168.0.201) — third node added for real quorum-based HA; it also hosts the Teleport, Vault and monitoring VMs, separate from the tf-managed K8s cluster.
+- A least-privilege Proxmox API token for Terraform: user `terraform@pve`, role `TerraformProv` (VM lifecycle + datastore privileges), ACL granted at `/` with `propagate: 1` — this covers every current and future cluster node automatically, no per-node token setup needed. Created by `bootstrap/` and read from Vault (`secret/homelab/proxmox`) by `provider.tf`. Never use `root@pam`'s own credentials here.
 - **Cloud-init Ubuntu 24.04 templates, built manually — NOT Terraform-managed.** VMID `9000` on `pve`, VMID `9100` on `pve-02`, VMID `9200` on `external-services`. Terraform only clones these; it never creates them. See [Gotchas](#gotchas-learned-the-hard-way) — these have been accidentally deleted once already, which breaks every `module` block until rebuilt.
 
 ## `terraform/` — VM provisioning
@@ -66,7 +67,7 @@ A reusable "clone a VM from a template" module.
   - `teleport_role = "control_plane"` — Teleport auth + proxy + ssh (fresh CA), with a Let's Encrypt cert for `<cluster>` and `*.<cluster>` via certbot DNS-01. Teleport re-reads the keypair hourly (`https_keypairs_reload_interval`), so renewals need no restart.
   - `vault_role = "server"` — single-node raft Vault, reachable **directly on the LAN** at `https://<vault_domain>` on port 443 (not through Teleport; a systemd drop-in grants the `vault` user `CAP_NET_BIND_SERVICE`), with a Let's Encrypt cert. A certbot deploy hook copies each renewed cert into `/opt/vault/tls/` and SIGHUPs Vault. **`vault operator init` is deliberately manual** — the unseal keys and root token go to a password manager, never onto the VM's disk; Vault comes up sealed after every reboot.
   - Renewal for both runs via certbot's own `certbot.timer` (twice daily); check with `systemctl list-timers certbot.timer` and `certbot renew --dry-run`.
-  - Prerequisites: `CLOUDFLARE_API_TOKEN` in `terraform.tfvars` (Zone:DNS:Edit on `homebytes.space` only — it ends up in state, the Proxmox snippet, and `/etc/letsencrypt/cloudflare.ini` on the VM), plus the `Datastore.Allocate` privilege on `TerraformProv`, `snippets` content enabled on the node's `local` storage, and the provider's `ssh` block (snippet uploads go over SSH, not the API).
+  - Prerequisites: the Cloudflare token in Vault at `secret/homelab/cloudflare` (Zone:DNS:Edit on `homebytes.space` only — it ends up in state, the Proxmox snippet, and `/etc/letsencrypt/cloudflare.ini` on the VM), and the provider's `ssh` block (snippet uploads go over SSH, not the API). `TerraformProv`'s privileges (incl. `Datastore.Allocate`) and `snippets` content on `local` are set by the `bootstrap/` stack, not by hand.
   - DNS-01 issues the cert without any A record, but clients still need one to reach the VM: `vault.homebytes.space → 192.168.0.22`. `teleport.homebytes.space` still points at `.158` until the Teleport cutover.
   - Every recreate issues a new cert, and Let's Encrypt allows 5 duplicate certificates per identical name set per week — set `acme_staging = true` while iterating.
 - **Known limitation:** no `cpu_cores`/`memory_mb`/`disk_size` override — every clone inherits the template's fixed sizing exactly (currently 2 vCPU / 2GB RAM / 20.5GB disk, after the resize in [Gotchas](#gotchas-learned-the-hard-way)). If you need a bigger/smaller VM, resize after cloning via `qm resize`, or extend the module.
@@ -109,6 +110,7 @@ terraform apply
 
 ## Order of operations across the whole toolchain
 
+0. `terraform/bootstrap/` → `apply` — Proxmox roles, users, tokens (into Vault), host setup.
 1. `terraform/` → `apply` — VMs exist.
 2. `../ansible/k8s_node_setup.yml` → OS/package prep on all 4 VMs.
 3. `../ansible/bootstrap_new_cluster.yml` → kube-vip + `kubeadm init`/`join`, produces `~/.kube/config-new-cluster`.

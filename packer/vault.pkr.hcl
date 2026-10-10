@@ -5,7 +5,7 @@
 source "proxmox-clone" "vault" {
   proxmox_url              = "https://192.168.0.201:8006/api2/json"
   username                 = "packer@pve!packer"
-  token                    = var.proxmox_api_token_secret
+  token                    = local.proxmox_api_token_secret
   insecure_skip_tls_verify = true  # self-signed cert
   task_timeout             = "10m" # full clones of the 20G disk can exceed the 1m default when the node is busy
   node                     = "external-services"

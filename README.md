@@ -34,7 +34,7 @@ Inventory groups (`ansible/hosts.ini`):
 | CNI | Calico | Migrated from Flannel |
 | CSI / Storage | Longhorn | Requires `cryptsetup`, `open-iscsi`, NFSv4 |
 | Ingress | NGINX Ingress Controller | L7 routing + TLS termination |
-| Load balancer | MetalLB | `k8s-services/metallb-config.yaml` |
+| Load balancer | MetalLB | Pool and L2 advertisement in `terraform/k8s-addons/metallb.tf` |
 | Service mesh | Istio | Gateway + peer authentication for `ase-market` (`istio/`) |
 | Observability | Prometheus, Grafana, Node Exporter | |
 | Remote access | Teleport | In-cluster agent via Helm (`teleport/`) dials out to the self-hosted control plane on `192.168.0.158` (`external-services/192.168.0.158.md`) |
