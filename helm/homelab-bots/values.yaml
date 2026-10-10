@@ -1,0 +1,60 @@
+# Image built by gitlab.com/abdulah.abutouq/homelab-bots CI, tagged with the
+# commit's short sha. Roll out a new build by bumping the tag.
+image:
+  repository: registry.gitlab.com/abdulah.abutouq/homelab-bots
+  tag: "3a97825c"
+  pullPolicy: IfNotPresent
+
+# Schedules below are in this zone (the old host ran on Asia/Amman); pods also
+# get TZ so the scripts' dates match.
+timeZone: Asia/Amman
+
+# Secrets come from Vault through External Secrets (ClusterSecretStore
+# "vault", set up by terraform/k8s-addons). Rotate with `vault kv put`, then
+# restart the listener (CronJobs pick it up on their next run).
+externalSecrets:
+  storeName: vault
+  refreshInterval: 15m
+  registry:
+    secretName: gitlab-registry-secret
+    vaultKey: apps/gitlab-registry
+
+# Storage class for the bots' state volumes; "" = the cluster default (proxmox-lvm).
+storageClassName: ""
+
+infraBrief:
+  enabled: true
+  schedule: "0 8 * * *"
+  # Checks the Claude token an hour before the brief, alerts on Telegram if it fails.
+  authCheckSchedule: "0 7 * * *"
+  # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+  vaultKey: apps/infra-briefs-bot
+  # Shares kids-app's long-lived token (`claude setup-token`).
+  claudeToken:
+    vaultKey: apps/kids-app
+    property: CLAUDE_CODE_OAUTH_TOKEN
+  # Dedup logs (.seen_headlines.log, .seen_concepts.log) and past briefs.
+  storage: 1Gi
+  resources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 768Mi}
+
+sreBot:
+  enabled: true
+  # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DEADLINE, DREAM
+  vaultKey: apps/sre-bot
+  # plan.yaml, quotes.yaml, vocab.yaml and the bot's JSON state. Personal
+  # content, so it lives on the volume, not in git.
+  storage: 1Gi
+  # Telegram allows one long-polling client per bot token: keep this at 0
+  # while another listener (e.g. on the old host) is still running.
+  listenerReplicas: 0
+  # The scheduled messages were disabled on the old host; same here.
+  suspended: true
+  schedules:
+    morning: "0 7 * * *"
+    evening: "30 21 * * *"
+    preview: "0 22 * * *"
+  resources:
+    requests: {cpu: 10m, memory: 64Mi}
+    limits: {memory: 256Mi}

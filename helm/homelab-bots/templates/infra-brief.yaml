@@ -1,0 +1,72 @@
+{{- if .Values.infraBrief.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: infra-brief-data
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+  annotations:
+    # Never delete the dedup history along with the app.
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.infraBrief.storage }}
+{{- range $job := list (dict "name" "infra-brief" "schedule" .Values.infraBrief.schedule "script" "bot.sh" "deadline" 3600)
+                       (dict "name" "claude-auth-check" "schedule" .Values.infraBrief.authCheckSchedule "script" "claude-auth-check.sh" "deadline" 300) }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $job.name }}
+  labels:
+    {{- include "homelab-bots.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $job.name }}
+spec:
+  schedule: {{ $job.schedule | quote }}
+  timeZone: {{ $.Values.timeZone }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # bot.sh retries the claude call itself; don't run a second brief on failure.
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ $job.deadline }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: {{ $job.name }}
+        spec:
+          {{- include "homelab-bots.podCommon" $ | nindent 10 }}
+          restartPolicy: Never
+          containers:
+            - name: {{ $job.name }}
+              image: {{ include "homelab-bots.image" $ }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              command: ["/app/infra-briefs/{{ $job.script }}"]
+              env:
+                - name: TZ
+                  value: {{ $.Values.timeZone }}
+                - name: OUTPUT_DIR
+                  value: /data
+              envFrom:
+                - secretRef:
+                    name: infra-brief
+              resources:
+                {{- toYaml $.Values.infraBrief.resources | nindent 16 }}
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: infra-brief-data
+{{- end }}
+{{- end }}

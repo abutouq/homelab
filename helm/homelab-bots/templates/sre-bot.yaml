@@ -1,0 +1,119 @@
+{{- if .Values.sreBot.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sre-bot-state
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+  annotations:
+    # Holds the plan and progress history: never delete it with the app.
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.sreBot.storage }}
+---
+# Handles replies to the bot (Telegram long polling).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sre-bot-listener
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+    app.kubernetes.io/name: sre-bot-listener
+spec:
+  replicas: {{ .Values.sreBot.listenerReplicas }}
+  # Never two pollers on one token, not even during a rollout.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sre-bot-listener
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sre-bot-listener
+    spec:
+      {{- include "homelab-bots.podCommon" . | nindent 6 }}
+      containers:
+        - name: listener
+          image: {{ include "homelab-bots.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python3", "/app/sre-bot/sre_daily_bot.py", "listen"]
+          env:
+            - name: TZ
+              value: {{ .Values.timeZone }}
+            - name: STATE_DIR
+              value: /state
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          envFrom:
+            - secretRef:
+                name: sre-bot
+          resources:
+            {{- toYaml .Values.sreBot.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /state
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: sre-bot-state
+{{- range $mode, $schedule := .Values.sreBot.schedules }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sre-bot-{{ $mode }}
+  labels:
+    {{- include "homelab-bots.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: sre-bot-{{ $mode }}
+spec:
+  schedule: {{ $schedule | quote }}
+  timeZone: {{ $.Values.timeZone }}
+  suspend: {{ $.Values.sreBot.suspended }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # Matches the old systemd unit: retry, but a message must not go out twice.
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: sre-bot-{{ $mode }}
+        spec:
+          {{- include "homelab-bots.podCommon" $ | nindent 10 }}
+          restartPolicy: Never
+          containers:
+            - name: sre-bot
+              image: {{ include "homelab-bots.image" $ }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              command: ["python3", "/app/sre-bot/sre_daily_bot.py", {{ $mode | quote }}]
+              env:
+                - name: TZ
+                  value: {{ $.Values.timeZone }}
+                - name: STATE_DIR
+                  value: /state
+              envFrom:
+                - secretRef:
+                    name: sre-bot
+              resources:
+                {{- toYaml $.Values.sreBot.resources | nindent 16 }}
+              volumeMounts:
+                - name: state
+                  mountPath: /state
+          volumes:
+            - name: state
+              persistentVolumeClaim:
+                claimName: sre-bot-state
+{{- end }}
+{{- end }}

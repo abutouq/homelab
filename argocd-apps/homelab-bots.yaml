@@ -1,0 +1,25 @@
+# ArgoCD Application: homelab-bots
+#
+# Managed by the app-of-apps on the tf-managed proxmox-homelab cluster
+# (terraform/k8s-addons). The bots' scheduled jobs and listener, moved off the
+# old host 192.168.0.158; code and image in gitlab.com/abdulah.abutouq/homelab-bots.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-bots
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abutouq/homelab.git
+    targetRevision: main
+    path: helm/homelab-bots
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homelab-bots
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
