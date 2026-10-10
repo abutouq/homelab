@@ -40,7 +40,13 @@ infraBrief:
     limits: {memory: 768Mi}
 
 sreBot:
-  enabled: true
+  # Off for now: only the infra brief runs in the cluster. The sre-bot's
+  # templates, Vault entry (secret/apps/sre-bot) and image code stay ready;
+  # set true to deploy it (and see listenerReplicas below).
+  enabled: false
+  # Keep the state volume (and its data migrated from 192.168.0.158) even
+  # while the bot itself is off.
+  keepState: true
   # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DEADLINE, DREAM
   vaultKey: apps/sre-bot
   # plan.yaml, quotes.yaml, vocab.yaml and the bot's JSON state. Personal

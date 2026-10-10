@@ -1,4 +1,4 @@
-{{- if .Values.sreBot.enabled }}
+{{- if or .Values.sreBot.enabled .Values.sreBot.keepState }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -17,6 +17,8 @@ spec:
   resources:
     requests:
       storage: {{ .Values.sreBot.storage }}
+{{- end }}
+{{- if .Values.sreBot.enabled }}
 ---
 # Handles replies to the bot (Telegram long polling).
 apiVersion: apps/v1
