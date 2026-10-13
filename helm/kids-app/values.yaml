@@ -155,7 +155,11 @@ env:
       secretKeyRef:
         name: kids-app-secrets
         key: CLAUDE_CODE_OAUTH_TOKEN
-
+  - name: ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kids-app-secrets
+        key: ADMIN_PASSWORD
 # Additional volumes on the output Deployment definition.
 volumes: []
   # - name: foo
