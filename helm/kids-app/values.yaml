@@ -160,6 +160,11 @@ env:
       secretKeyRef:
         name: kids-app-secrets
         key: ADMIN_PASSWORD
+  # Keep the claude CLI's state (incl. session transcripts under projects/) on
+  # the PVC. app.db stores session IDs, so without this every new pod fails
+  # with "No conversation found with session ID" on --resume.
+  - name: CLAUDE_CONFIG_DIR
+    value: /app/data/claude
 # Additional volumes on the output Deployment definition.
 volumes: []
   # - name: foo
