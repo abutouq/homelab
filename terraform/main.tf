@@ -193,7 +193,7 @@ module "tf_grafana_01" {
     ca_crt     = data.vault_kv_secret_v2.prometheus_k8s[0].data["ca_crt"]
   }
   # node-exporter on the Proxmox hosts themselves (installed by bootstrap/)
-  prometheus_node_targets   = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100"]
+  prometheus_node_targets   = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100", "192.168.0.202:9100"]
   prometheus_pihole_targets = ["${split("/", module.tf_pihole_01.ip_address)[0]}:9617"]
 }
 

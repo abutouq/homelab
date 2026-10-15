@@ -15,6 +15,7 @@ locals {
     pve               = "192.168.0.2"
     pve-02            = "192.168.0.200"
     external-services = "192.168.0.201"
+    big               = "192.168.0.202"
   }
   # Any node works for cluster-wide config (/etc/pve is shared).
   api_host = local.proxmox_hosts["pve"]
@@ -53,6 +54,14 @@ locals {
 
   host_script = <<-EOT
     set -e
+    # No subscription: swap the default enterprise repos (401 without one, so
+    # apt update fails) for the no-subscription ones. Same file names, so a
+    # fresh install's enterprise files are overwritten rather than left behind.
+    . /etc/os-release
+    printf 'Types: deb\nURIs: http://download.proxmox.com/debian/pve\nSuites: %s\nComponents: pve-no-subscription\nSigned-By: /usr/share/keyrings/proxmox-archive-keyring.gpg\n' "$VERSION_CODENAME" > /etc/apt/sources.list.d/pve-enterprise.sources
+    printf 'Types: deb\nURIs: http://download.proxmox.com/debian/ceph-squid\nSuites: %s\nComponents: no-subscription\nSigned-By: /usr/share/keyrings/proxmox-archive-keyring.gpg\n' "$VERSION_CODENAME" > /etc/apt/sources.list.d/ceph.sources
+    apt-get update -qq
+
     # node-exporter, scraped by Prometheus on tf-grafana-01 (proxmox-hosts job)
     if ! dpkg -s prometheus-node-exporter >/dev/null 2>&1; then
       DEBIAN_FRONTEND=noninteractive apt-get install -y -qq prometheus-node-exporter
