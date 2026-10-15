@@ -1,0 +1,39 @@
+# Pi-hole's blocklists, groups and domain rules, loaded into gravity.db when
+# tf-pihole-01 is built (restored from 192.168.0.158 on 2026-10-15).
+# This file is the source of truth: edits made in the web UI are lost when the
+# VM is rebuilt, so copy them here. Clients (device IP -> groups) live in Vault:
+#   vault kv get secret/apps/pihole-clients
+#
+# "Default" always exists; devices not listed as clients are in it.
+# adlists/domains without `groups` apply to every group.
+# Domain types: allow, deny, regex_allow, regex_deny.
+
+groups:
+  - name: BlockYoutube
+    description: block Youtube
+  - name: AllowYouTube
+
+adlists:
+  - url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+    comment: Migrated from /etc/pihole/adlists.list
+  - url: https://raw.githubusercontent.com/PolishFiltersTeam/KADhosts/master/KADhosts.txt
+    enabled: false
+  - url: https://adaway.org/hosts.txt
+  - url: https://v.firebog.net/hosts/AdguardDNS.txt
+  - url: https://v.firebog.net/hosts/Admiral.txt
+  - url: https://raw.githubusercontent.com/anudeepND/blacklist/master/adservers.txt
+  - url: https://v.firebog.net/hosts/Easylist.txt
+  - url: https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
+  - url: https://raw.githubusercontent.com/FadeMind/hosts.extras/master/UncheckyAds/hosts
+  - url: https://raw.githubusercontent.com/bigdargon/hostsVN/master/hosts
+
+domains:
+  - {domain: '(\.|^)youtube\.com$', type: regex_deny, groups: [BlockYoutube]}
+  - {domain: '(\.|^)youtu\.be$', type: regex_deny, groups: [BlockYoutube]}
+  - {domain: '(\.|^)www\.youtube\.com$', type: regex_deny, groups: [BlockYoutube]}
+  - {domain: '(^|\.)googlevideo\.com$', type: regex_deny, groups: [Default]}
+  - {domain: '(^|\.)googlevideo\.com$', type: regex_allow, groups: [AllowYouTube]}
+  - {domain: securepubads.g.doubleclick.net, type: deny, enabled: false, comment: Added from Query Log}
+  - {domain: z.clarity.ms, type: deny, enabled: false, comment: Added from Query Log}
+  - {domain: ep2.adtrafficquality.google, type: deny, enabled: false, comment: Added from Query Log}
+  - {domain: googleads.g.doubleclick.net, type: deny, enabled: false, comment: Added from Query Log}

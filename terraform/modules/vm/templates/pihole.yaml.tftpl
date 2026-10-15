@@ -1,0 +1,104 @@
+#cloud-config
+# Pi-hole + pihole-exporter in Docker. Settings come from the environment, the
+# blocklists/groups/rules/clients from gravity-seed.sql (rendered by Terraform),
+# loaded once on first boot by /opt/pihole/restore.sh.
+# The hostname in /etc/hosts (sudo warns otherwise).
+manage_etc_hosts: true
+
+# systemd-resolved's stub listener holds 127.0.0.53:53, which blocks Pi-hole
+# from binding port 53 on all addresses. Switched off here, before packages and
+# images are fetched, so nothing caches the stub address; the VM then resolves
+# straight through its own nameservers (dns_servers, never this Pi-hole).
+bootcmd:
+  - mkdir -p /etc/systemd/resolved.conf.d
+  - printf '[Resolve]\nDNSStubListener=no\n' > /etc/systemd/resolved.conf.d/pihole.conf
+  - systemctl restart systemd-resolved
+  - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+packages:
+  - docker.io
+  - docker-compose-v2
+
+write_files:
+  - path: /opt/pihole/compose.yaml
+    owner: root:root
+    permissions: '0644'
+    content: |
+      services:
+        pihole:
+          container_name: pihole
+          image: ${pihole_image}
+          ports:
+            - "53:53/tcp"
+            - "53:53/udp"
+            # Web UI on loopback only: reached through the Teleport app
+            # (pihole.teleport.homebytes.space), not directly on the LAN.
+            - "127.0.0.1:80:80/tcp"
+          environment:
+            TZ: ${pihole_timezone}
+            FTLCONF_dns_upstreams: "${join(";", pihole_upstreams)}"
+            # Docker's bridge network: answer queries from any source.
+            FTLCONF_dns_listeningMode: ALL
+            FTLCONF_ntp_sync_active: "false"
+          env_file: /opt/pihole/pihole.env
+          volumes:
+            - /opt/pihole/etc-pihole:/etc/pihole
+            - /opt/pihole/seed:/seed:ro
+          cap_add:
+            - SYS_NICE
+          restart: unless-stopped
+        pihole-exporter:
+          container_name: pihole-exporter
+          image: ${pihole_exporter_image}
+          ports:
+            - "9617:9617"
+          environment:
+            PIHOLE_PROTOCOL: http
+            PIHOLE_HOSTNAME: pihole
+            PIHOLE_PORT: "80"
+            INTERVAL: 30s
+          env_file: /opt/pihole/exporter.env
+          depends_on: [pihole]
+          restart: unless-stopped
+
+  - path: /opt/pihole/pihole.env
+    owner: root:root
+    permissions: '0600'
+    content: |
+      FTLCONF_webserver_api_password=${pihole_admin_password}
+  - path: /opt/pihole/exporter.env
+    owner: root:root
+    permissions: '0600'
+    content: |
+      PIHOLE_PASSWORD=${pihole_admin_password}
+
+  - path: /opt/pihole/seed/gravity.sql
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${pihole_gravity_sql_b64}
+  # Custom HTTP headers (a looser Content-Security-Policy than the default),
+  # carried over from the old server.
+  - path: /opt/pihole/seed/web-headers.json
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(jsonencode(pihole_web_headers))}
+
+  - path: /opt/pihole/restore.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # First boot only: replace Pi-hole's default lists with the seeded ones.
+      set -euo pipefail
+      until [ "$(docker inspect -f '{{.State.Health.Status}}' pihole 2>/dev/null)" = healthy ]; do sleep 5; done
+      docker exec pihole pihole-FTL sqlite3 -bail /etc/pihole/gravity.db ".read /seed/gravity.sql"
+      docker exec pihole sh -c 'pihole-FTL --config webserver.headers "$(cat /seed/web-headers.json)"'
+      docker exec pihole pihole -g
+
+runcmd:
+  - until docker compose -f /opt/pihole/compose.yaml pull -q; do sleep 10; done
+  - docker compose -f /opt/pihole/compose.yaml up -d
+  # Bounded, so a stuck restore can't hang cloud-init (and the boot) forever.
+  - timeout 900 /opt/pihole/restore.sh

@@ -1,0 +1,45 @@
+-- gravity.db contents for the pihole role, rendered by Terraform. Replaces the
+-- defaults Pi-hole creates on its first start; run once, then `pihole -g`.
+BEGIN;
+-- Rows that reference the lists first (foreign keys); `pihole -g` rebuilds gravity.
+DELETE FROM adlist_by_group;
+DELETE FROM domainlist_by_group;
+DELETE FROM client_by_group;
+DELETE FROM gravity;
+DELETE FROM antigravity;
+DELETE FROM adlist;
+DELETE FROM domainlist;
+DELETE FROM client;
+DELETE FROM "group" WHERE id != 0;
+%{ for i, g in groups ~}
+INSERT INTO "group" (id, enabled, name, description) VALUES (${i + 1}, 1, '${replace(g.name, "'", "''")}', '${replace(g.description, "'", "''")}');
+%{ endfor ~}
+%{ for i, a in adlists ~}
+INSERT INTO adlist (id, address, enabled, comment, type) VALUES (${i + 1}, '${replace(a.url, "'", "''")}', ${a.enabled ? 1 : 0}, '${replace(a.comment, "'", "''")}', 0);
+%{ endfor ~}
+%{ for i, d in domains ~}
+INSERT INTO domainlist (id, type, domain, enabled, comment) VALUES (${i + 1}, ${domain_types[d.type]}, '${replace(d.domain, "'", "''")}', ${d.enabled ? 1 : 0}, '${replace(d.comment, "'", "''")}');
+%{ endfor ~}
+%{ for i, c in clients ~}
+INSERT INTO client (id, ip, comment) VALUES (${i + 1}, '${replace(c.ip, "'", "''")}', '${replace(c.comment, "'", "''")}');
+%{ endfor ~}
+-- The insert triggers put every new row in Default; set the memberships exactly instead.
+DELETE FROM adlist_by_group;
+DELETE FROM domainlist_by_group;
+DELETE FROM client_by_group;
+%{ for i, a in adlists ~}
+%{ for g in a.groups == null ? keys(group_ids) : a.groups ~}
+INSERT INTO adlist_by_group (adlist_id, group_id) VALUES (${i + 1}, ${group_ids[g]});
+%{ endfor ~}
+%{ endfor ~}
+%{ for i, d in domains ~}
+%{ for g in d.groups == null ? keys(group_ids) : d.groups ~}
+INSERT INTO domainlist_by_group (domainlist_id, group_id) VALUES (${i + 1}, ${group_ids[g]});
+%{ endfor ~}
+%{ endfor ~}
+%{ for i, c in clients ~}
+%{ for g in c.groups ~}
+INSERT INTO client_by_group (client_id, group_id) VALUES (${i + 1}, ${group_ids[g]});
+%{ endfor ~}
+%{ endfor ~}
+COMMIT;

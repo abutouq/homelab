@@ -193,7 +193,75 @@ module "tf_grafana_01" {
     ca_crt     = data.vault_kv_secret_v2.prometheus_k8s[0].data["ca_crt"]
   }
   # node-exporter on the Proxmox hosts themselves (installed by bootstrap/)
-  prometheus_node_targets = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100"]
+  prometheus_node_targets   = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100"]
+  prometheus_pihole_targets = ["${split("/", module.tf_pihole_01.ip_address)[0]}:9617"]
+}
+
+# Pi-hole, the LAN's DNS. Keeps the old server's address (192.168.0.158), which
+# the router hands out over DHCP, so no client changes.
+# Web UI password: vault kv get secret/apps/pihole
+resource "random_password" "pihole_admin" {
+  length  = 32
+  special = false
+}
+
+resource "vault_kv_secret_v2" "pihole_admin" {
+  mount = "secret"
+  name  = "apps/pihole"
+  data_json = jsonencode({
+    url            = "https://pihole.teleport.homebytes.space/admin/"
+    admin_password = random_password.pihole_admin.result
+  })
+}
+
+# Devices and their groups (LAN IPs and device names stay out of this public repo).
+data "vault_kv_secret_v2" "pihole_clients" {
+  mount = "secret"
+  name  = "apps/pihole-clients"
+}
+
+locals {
+  pihole_lists = yamldecode(file("${path.root}/pihole/lists.yaml"))
+}
+
+module "tf_pihole_01" {
+  source              = "${path.root}/modules/vm"
+  vm_name             = "tf-pihole-01"
+  vm_id               = 9009
+  node_name           = "pve" # node .2
+  template_vm_id      = 9000
+  ip_address          = "192.168.0.158/24"
+  gateway             = "192.168.0.1"
+  ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
+  teleport_role       = "agent"
+  teleport_join_token = random_password.teleport_join_token.result
+  teleport_apps       = { pihole = "http://127.0.0.1:80" }
+  # Tiny: Pi-hole needs little. The cpu block needs a type to set cores.
+  cpu_type  = "x86-64-v2-AES"
+  cpu_cores = 1
+  memory_mb = 768
+  # Never resolve through itself (it is the LAN's DNS, and may be the one being rebuilt).
+  dns_servers           = ["1.1.1.1", "1.0.0.1"]
+  pihole_role           = "server"
+  pihole_admin_password = random_password.pihole_admin.result
+  pihole = {
+    image          = "pihole/pihole:2026.09.0"
+    exporter_image = "ekofr/pihole-exporter:v1.2.0"
+    timezone       = "Asia/Amman"
+    upstreams      = ["1.1.1.1", "1.0.0.1"]
+    web_headers = [
+      "X-DNS-Prefetch-Control: off",
+      "Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;",
+      "X-Frame-Options: DENY",
+      "X-XSS-Protection: 0",
+      "X-Content-Type-Options: nosniff",
+      "Referrer-Policy: strict-origin-when-cross-origin",
+    ]
+    groups  = local.pihole_lists.groups
+    adlists = local.pihole_lists.adlists
+    domains = local.pihole_lists.domains
+    clients = jsondecode(data.vault_kv_secret_v2.pihole_clients.data_json).clients
+  }
 }
 
 resource "cloudflare_dns_record" "vault" {

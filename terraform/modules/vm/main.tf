@@ -6,9 +6,24 @@ locals {
     var.teleport_role == "agent" ? "teleport-agent.yaml.tftpl" : "",
     var.vault_role == "server" ? "vault-server.yaml.tftpl" : "",
     var.grafana_role == "server" ? "grafana.yaml.tftpl" : "",
+    var.pihole_role == "server" ? "pihole.yaml.tftpl" : "",
   ])
   has_role   = length(local.role_parts) > 0
   needs_acme = var.teleport_role == "control_plane" || var.vault_role == "server"
+
+  # pihole role: gravity.db contents as SQL. Group names map to ids, "Default" is 0.
+  pihole_group_ids = var.pihole == null ? {} : merge(
+    { Default = 0 },
+    { for i, g in var.pihole.groups : g.name => i + 1 },
+  )
+  pihole_gravity_sql = var.pihole == null ? "" : templatefile("${path.module}/templates/pihole-gravity.sql.tftpl", {
+    groups       = var.pihole.groups
+    adlists      = var.pihole.adlists
+    domains      = var.pihole.domains
+    clients      = var.pihole.clients
+    group_ids    = local.pihole_group_ids
+    domain_types = { allow = 0, deny = 1, regex_allow = 2, regex_deny = 3 }
+  })
 
   # Templates ignore vars they don't reference, so every part gets the same set.
   template_vars = {
@@ -33,6 +48,16 @@ locals {
     k8s_token              = var.prometheus_k8s == null ? "" : var.prometheus_k8s.token
     k8s_ca_crt             = var.prometheus_k8s == null ? "" : var.prometheus_k8s.ca_crt
     node_targets           = var.prometheus_node_targets
+    pihole_targets         = var.prometheus_pihole_targets
+    teleport_apps          = var.teleport_apps
+    # pihole role
+    pihole_admin_password  = var.pihole_admin_password == null ? "" : var.pihole_admin_password
+    pihole_image           = var.pihole == null ? "" : var.pihole.image
+    pihole_exporter_image  = var.pihole == null ? "" : var.pihole.exporter_image
+    pihole_timezone        = var.pihole == null ? "" : var.pihole.timezone
+    pihole_upstreams       = var.pihole == null ? [] : var.pihole.upstreams
+    pihole_web_headers     = var.pihole == null ? [] : var.pihole.web_headers
+    pihole_gravity_sql_b64 = base64encode(local.pihole_gravity_sql)
   }
 }
 
@@ -118,6 +143,13 @@ resource "proxmox_virtual_environment_vm" "this" {
 
     user_data_file_id = local.has_role ? proxmox_virtual_environment_file.cloud_init[0].id : null
 
+    dynamic "dns" {
+      for_each = var.dns_servers == null ? [] : [1]
+      content {
+        servers = var.dns_servers
+      }
+    }
+
     ip_config {
       ipv4 {
         address = var.ip_address
@@ -142,6 +174,14 @@ resource "proxmox_virtual_environment_vm" "this" {
     precondition {
       condition     = var.grafana_role == "none" || nonsensitive(var.grafana_admin_password != null)
       error_message = "grafana_admin_password is required when grafana_role = \"server\" (otherwise Grafana keeps admin/admin)."
+    }
+    precondition {
+      condition     = var.pihole_role == "none" || (var.pihole != null && nonsensitive(var.pihole_admin_password != null))
+      error_message = "pihole and pihole_admin_password are required when pihole_role = \"server\"."
+    }
+    precondition {
+      condition     = var.pihole_role == "none" || var.dns_servers != null
+      error_message = "Set dns_servers when pihole_role = \"server\": the VM must not resolve through the Pi-hole it is about to become."
     }
     precondition {
       condition     = var.teleport_role == "none" || nonsensitive(var.teleport_join_token != null)

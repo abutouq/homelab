@@ -23,8 +23,18 @@ write_files:
         enabled: "no"
       ssh_service:
         enabled: "yes"
+%{ if length(teleport_apps) > 0 ~}
+      app_service:
+        enabled: "yes"
+        apps:
+%{ for name, uri in teleport_apps ~}
+          - name: ${name}
+            uri: ${uri}
+%{ endfor ~}
+%{ else ~}
       app_service:
         enabled: "no"
+%{ endif ~}
 
 runcmd:
 %{ if teleport_proxy_ip != "" ~}

@@ -139,3 +139,54 @@ variable "prometheus_node_targets" {
   default     = []
   description = "grafana role: host:port node-exporter targets scraped directly (e.g. the Proxmox hosts)."
 }
+
+variable "dns_servers" {
+  type        = list(string)
+  default     = null
+  description = "Nameservers for the VM (cloud-init). null keeps Proxmox's default, the node's own resolvers."
+}
+
+variable "teleport_apps" {
+  type        = map(string)
+  default     = {}
+  description = "Agents only: Teleport apps served by this VM's agent, name -> URI (e.g. a web UI bound to localhost). Each is reachable at <name>.teleport.homebytes.space."
+}
+
+variable "pihole_role" {
+  type        = string
+  default     = "none"
+  description = "Pi-hole role to configure via cloud-init on first boot: \"none\" or \"server\" (Pi-hole + its Prometheus exporter in Docker, DNS on port 53, web UI on localhost:80)."
+  validation {
+    condition     = contains(["none", "server"], var.pihole_role)
+    error_message = "pihole_role must be one of: none, server."
+  }
+}
+
+variable "pihole_admin_password" {
+  type        = string
+  default     = null
+  sensitive   = true
+  description = "pihole role: web UI / API password (also used by the exporter)."
+}
+
+variable "pihole" {
+  type = object({
+    image          = string
+    exporter_image = string
+    timezone       = string
+    upstreams      = list(string)
+    web_headers    = list(string)
+    groups         = list(object({ name = string, description = optional(string, "") }))
+    adlists        = list(object({ url = string, enabled = optional(bool, true), comment = optional(string, ""), groups = optional(list(string)) }))
+    domains        = list(object({ domain = string, type = string, enabled = optional(bool, true), comment = optional(string, ""), groups = optional(list(string)) }))
+    clients        = list(object({ ip = string, comment = optional(string, ""), groups = list(string) }))
+  })
+  default     = null
+  description = "pihole role: images, settings and the gravity.db contents (groups, blocklists, domain rules, clients; group names, \"Default\" is built in). adlists/domains without groups apply to every group."
+}
+
+variable "prometheus_pihole_targets" {
+  type        = list(string)
+  default     = []
+  description = "grafana role: host:port pihole-exporter targets."
+}

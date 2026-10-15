@@ -26,6 +26,11 @@ write_files:
           static_configs:
             - targets: [${join(", ", formatlist("'%s'", node_targets))}]
 %{ endif ~}
+%{ if length(pihole_targets) > 0 ~}
+        - job_name: pihole
+          static_configs:
+            - targets: [${join(", ", formatlist("'%s'", pihole_targets))}]
+%{ endif ~}
 %{ if k8s_api_server != "" ~}
         # --- K8s cluster, all through the API server proxy (this VM has no
         # route to pod IPs). Identity: monitoring/prometheus-external.
