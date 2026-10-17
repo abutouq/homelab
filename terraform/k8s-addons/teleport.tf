@@ -20,6 +20,7 @@ locals {
   teleport_apps = [
     { name = "argocd", uri = "http://argocd-server.argocd.svc.cluster.local:80" }, # argocd-server runs --insecure
     { name = "grafana", uri = "http://192.168.0.23:3000" },                        # tf-grafana-01
+    { name = "vault", uri = "https://vault.homebytes.space" },                     # tf-vault-01, by name: its cert is for the domain
     { name = "immich", uri = "http://192.168.0.158:2283" },
     { name = "localstack", uri = "http://192.168.0.158:4566" },
   ]
