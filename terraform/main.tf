@@ -197,6 +197,141 @@ module "tf_grafana_01" {
   prometheus_pihole_targets = ["${split("/", module.tf_pihole_01.ip_address)[0]}:9617"]
 }
 
+
+# OpenVPN PKI, owned by Terraform (in state, and the client profiles in Vault) rather
+# than built on the VM, so rebuilding tf-openvpn-01 keeps the CA and every client keeps working.
+# Add a device: append it to openvpn.clients and apply, then
+#   vault kv get -field=<name> secret/apps/openvpn-clients > <name>.ovpn
+# Revoke one: remove it from the list and apply -replace=tls_self_signed_cert.openvpn_ca
+# (there's no CRL, so that reissues every profile).
+locals {
+  openvpn = {
+    # Not managed here: an A record to the WAN address, plus a router port-forward UDP 1194 -> 192.168.0.24.
+    remote  = "vpn.homebytes.space"
+    port    = 1194
+    clients = ["laptop", "phone"]
+  }
+  openvpn_validity_hours = 87600 # 10 years
+
+  # OpenVPN's static key format: 256 random bytes as 16 lines of hex.
+  openvpn_tls_crypt_key = join("\n", concat(
+    ["-----BEGIN OpenVPN Static key V1-----"],
+    [for i in range(16) : substr(random_bytes.openvpn_tls_crypt.hex, i * 32, 32)],
+    ["-----END OpenVPN Static key V1-----", ""],
+  ))
+}
+
+resource "tls_private_key" "openvpn_ca" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "tls_self_signed_cert" "openvpn_ca" {
+  private_key_pem       = tls_private_key.openvpn_ca.private_key_pem
+  is_ca_certificate     = true
+  validity_period_hours = local.openvpn_validity_hours
+  allowed_uses          = ["cert_signing", "crl_signing"]
+  subject {
+    common_name = "homelab OpenVPN CA"
+  }
+}
+
+resource "tls_private_key" "openvpn_server" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "tls_cert_request" "openvpn_server" {
+  private_key_pem = tls_private_key.openvpn_server.private_key_pem
+  subject {
+    common_name = "tf-openvpn-01" # clients pin it with verify-x509-name
+  }
+}
+
+resource "tls_locally_signed_cert" "openvpn_server" {
+  cert_request_pem      = tls_cert_request.openvpn_server.cert_request_pem
+  ca_private_key_pem    = tls_private_key.openvpn_ca.private_key_pem
+  ca_cert_pem           = tls_self_signed_cert.openvpn_ca.cert_pem
+  validity_period_hours = local.openvpn_validity_hours
+  # serverAuth is what the clients' remote-cert-tls server checks.
+  allowed_uses = ["digital_signature", "key_agreement", "server_auth"]
+}
+
+resource "tls_private_key" "openvpn_client" {
+  for_each    = toset(local.openvpn.clients)
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "tls_cert_request" "openvpn_client" {
+  for_each        = toset(local.openvpn.clients)
+  private_key_pem = tls_private_key.openvpn_client[each.key].private_key_pem
+  subject {
+    common_name = each.key
+  }
+}
+
+resource "tls_locally_signed_cert" "openvpn_client" {
+  for_each              = toset(local.openvpn.clients)
+  cert_request_pem      = tls_cert_request.openvpn_client[each.key].cert_request_pem
+  ca_private_key_pem    = tls_private_key.openvpn_ca.private_key_pem
+  ca_cert_pem           = tls_self_signed_cert.openvpn_ca.cert_pem
+  validity_period_hours = local.openvpn_validity_hours
+  allowed_uses          = ["digital_signature", "client_auth"]
+}
+
+resource "random_bytes" "openvpn_tls_crypt" {
+  length = 256
+}
+
+# One inline .ovpn profile per client: vault kv get -field=<name> secret/apps/openvpn-clients
+resource "vault_kv_secret_v2" "openvpn_clients" {
+  mount = "secret"
+  name  = "apps/openvpn-clients"
+  data_json = jsonencode({
+    for name in local.openvpn.clients : name => templatefile("${path.root}/openvpn/client.ovpn.tftpl", {
+      remote        = local.openvpn.remote
+      port          = local.openvpn.port
+      server_name   = tls_cert_request.openvpn_server.subject[0].common_name
+      ca_cert       = tls_self_signed_cert.openvpn_ca.cert_pem
+      cert          = tls_locally_signed_cert.openvpn_client[name].cert_pem
+      key           = tls_private_key.openvpn_client[name].private_key_pem
+      tls_crypt_key = local.openvpn_tls_crypt_key
+    })
+  })
+}
+
+# Replaces the OpenVPN server on the old box (192.168.0.158).
+module "tf_openvpn_01" {
+  source              = "${path.root}/modules/vm"
+  vm_name             = "tf-openvpn-01"
+  vm_id               = 9010
+  node_name           = "external-services" # node .201, where the Packer template is
+  template_vm_id      = 9304                # Packer: packer/openvpn.pkr.hcl
+  image_baked         = true
+  ip_address          = "192.168.0.24/24"
+  gateway             = "192.168.0.1"
+  ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
+  teleport_role       = "agent"
+  teleport_join_token = random_password.teleport_join_token.result
+  # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
+  teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
+  cpu_type          = "x86-64-v2-AES"
+  cpu_cores         = 1
+  memory_mb         = 1024
+  openvpn_role      = "server"
+  openvpn = {
+    port        = local.openvpn.port
+    push_routes = ["192.168.0.0/24"]
+    # Clients resolve through Pi-hole (reachable: their traffic is NATed to this VM's LAN address).
+    dns_servers   = [split("/", module.tf_pihole_01.ip_address)[0]]
+    ca_cert       = tls_self_signed_cert.openvpn_ca.cert_pem
+    server_cert   = tls_locally_signed_cert.openvpn_server.cert_pem
+    server_key    = tls_private_key.openvpn_server.private_key_pem
+    tls_crypt_key = local.openvpn_tls_crypt_key
+  }
+}
+
 # Pi-hole, the LAN's DNS. Keeps the old server's address (192.168.0.158), which
 # the router hands out over DHCP, so no client changes.
 # Web UI password: vault kv get secret/apps/pihole

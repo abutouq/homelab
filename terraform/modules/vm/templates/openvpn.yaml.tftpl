@@ -1,0 +1,83 @@
+#cloud-config
+# Routed OpenVPN server (packages baked by packer/openvpn.pkr.hcl). The PKI and
+# tls-crypt key come from Terraform, so a rebuilt VM keeps the same CA and the
+# client profiles in Vault (secret/apps/openvpn-clients) keep working.
+# Keys are read as root before openvpn drops to nobody, so root-only is enough.
+
+write_files:
+  - path: /etc/openvpn/server/ca.crt
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${openvpn_ca_cert_b64}
+  - path: /etc/openvpn/server/server.crt
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${openvpn_server_cert_b64}
+  - path: /etc/openvpn/server/server.key
+    owner: root:root
+    permissions: '0600'
+    encoding: b64
+    content: ${openvpn_server_key_b64}
+  - path: /etc/openvpn/server/tls-crypt.key
+    owner: root:root
+    permissions: '0600'
+    encoding: b64
+    content: ${openvpn_tls_crypt_b64}
+
+  # Relative paths resolve against /etc/openvpn/server (openvpn-server@'s WorkingDirectory).
+  - path: /etc/openvpn/server/server.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      port ${openvpn_port}
+      proto udp
+      dev tun
+      topology subnet
+      server ${openvpn_server}
+      ca ca.crt
+      cert server.crt
+      key server.key
+      # ECDSA certs: ECDH only, no DH params.
+      dh none
+      tls-crypt tls-crypt.key
+      tls-version-min 1.2
+      data-ciphers AES-256-GCM:CHACHA20-POLY1305
+      remote-cert-tls client
+%{ for r in openvpn_push_routes ~}
+      push "route ${r}"
+%{ endfor ~}
+%{ for d in openvpn_dns_servers ~}
+      push "dhcp-option DNS ${d}"
+%{ endfor ~}
+      keepalive 10 60
+      user nobody
+      group nogroup
+      persist-key
+      persist-tun
+      explicit-exit-notify 1
+      verb 3
+
+  # Clients leave the VM with its LAN address, so LAN hosts (and the router)
+  # need no route back to the VPN subnet.
+  - path: /etc/systemd/system/openvpn-nat.service
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=NAT for OpenVPN clients (${openvpn_network})
+      Before=openvpn-server@server.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/iptables -w -t nat -A POSTROUTING -s ${openvpn_network} ! -o tun+ -j MASQUERADE
+      ExecStop=/usr/sbin/iptables -w -t nat -D POSTROUTING -s ${openvpn_network} ! -o tun+ -j MASQUERADE
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now openvpn-nat.service openvpn-server@server.service

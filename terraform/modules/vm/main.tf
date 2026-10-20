@@ -7,6 +7,7 @@ locals {
     var.vault_role == "server" ? "vault-server.yaml.tftpl" : "",
     var.grafana_role == "server" ? "grafana.yaml.tftpl" : "",
     var.pihole_role == "server" ? "pihole.yaml.tftpl" : "",
+    var.openvpn_role == "server" ? "openvpn.yaml.tftpl" : "",
   ])
   has_role   = length(local.role_parts) > 0
   needs_acme = var.teleport_role == "control_plane" || var.vault_role == "server"
@@ -58,6 +59,16 @@ locals {
     pihole_upstreams       = var.pihole == null ? [] : var.pihole.upstreams
     pihole_web_headers     = var.pihole == null ? [] : var.pihole.web_headers
     pihole_gravity_sql_b64 = base64encode(local.pihole_gravity_sql)
+    # openvpn role (OpenVPN wants dotted netmasks, not CIDR prefixes)
+    openvpn_port            = var.openvpn == null ? 0 : var.openvpn.port
+    openvpn_network         = var.openvpn == null ? "" : var.openvpn.network
+    openvpn_server          = var.openvpn == null ? "" : "${cidrhost(var.openvpn.network, 0)} ${cidrnetmask(var.openvpn.network)}"
+    openvpn_push_routes     = var.openvpn == null ? [] : [for r in var.openvpn.push_routes : "${cidrhost(r, 0)} ${cidrnetmask(r)}"]
+    openvpn_dns_servers     = var.openvpn == null ? [] : var.openvpn.dns_servers
+    openvpn_ca_cert_b64     = var.openvpn == null ? "" : base64encode(var.openvpn.ca_cert)
+    openvpn_server_cert_b64 = var.openvpn == null ? "" : base64encode(var.openvpn.server_cert)
+    openvpn_server_key_b64  = var.openvpn == null ? "" : base64encode(var.openvpn.server_key)
+    openvpn_tls_crypt_b64   = var.openvpn == null ? "" : base64encode(var.openvpn.tls_crypt_key)
   }
 }
 
@@ -168,8 +179,8 @@ resource "proxmox_virtual_environment_vm" "this" {
       error_message = "cloudflare_api_token is required when teleport_role = \"control_plane\" or vault_role = \"server\" (certbot DNS-01)."
     }
     precondition {
-      condition     = var.image_baked || (var.vault_role == "none" && var.grafana_role == "none" && var.teleport_role != "control_plane")
-      error_message = "The vault, grafana and teleport control_plane roles need a Packer image (image_baked = true); their cloud-init no longer installs packages."
+      condition     = var.image_baked || (var.vault_role == "none" && var.grafana_role == "none" && var.openvpn_role == "none" && var.teleport_role != "control_plane")
+      error_message = "The vault, grafana, openvpn and teleport control_plane roles need a Packer image (image_baked = true); their cloud-init no longer installs packages."
     }
     precondition {
       condition     = var.grafana_role == "none" || nonsensitive(var.grafana_admin_password != null)
@@ -182,6 +193,10 @@ resource "proxmox_virtual_environment_vm" "this" {
     precondition {
       condition     = var.pihole_role == "none" || var.dns_servers != null
       error_message = "Set dns_servers when pihole_role = \"server\": the VM must not resolve through the Pi-hole it is about to become."
+    }
+    precondition {
+      condition     = var.openvpn_role == "none" || nonsensitive(var.openvpn != null)
+      error_message = "openvpn is required when openvpn_role = \"server\"."
     }
     precondition {
       condition     = var.teleport_role == "none" || nonsensitive(var.teleport_join_token != null)

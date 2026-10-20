@@ -1,0 +1,25 @@
+# ${server_name} OpenVPN profile, rendered by terraform/main.tf.
+client
+dev tun
+proto udp
+remote ${remote} ${port}
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+remote-cert-tls server
+verify-x509-name ${server_name} name
+data-ciphers AES-256-GCM:CHACHA20-POLY1305
+verb 3
+<ca>
+${trimspace(ca_cert)}
+</ca>
+<cert>
+${trimspace(cert)}
+</cert>
+<key>
+${trimspace(key)}
+</key>
+<tls-crypt>
+${trimspace(tls_crypt_key)}
+</tls-crypt>
