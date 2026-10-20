@@ -1,5 +1,5 @@
 # Packer image builds. Run from this directory:
-#   make all               build base, then vault, teleport and grafana (skips images that already exist)
+#   make all               build base, then vault, teleport, grafana and openvpn (skips images that already exist)
 #   make teleport          build one role image (builds base first if missing)
 #   make rebuild-all       delete and rebuild every image, base first
 #   make rebuild-teleport  delete that role's template on the node, then build it again
@@ -13,10 +13,11 @@ export VAULT_ADDR ?= https://vault.homebytes.space
 export VAULT_TOKEN ?= $(shell cat ~/.vault-token 2>/dev/null)
 BASE_ID  := 9300
 
-ROLES := vault teleport grafana
+ROLES := vault teleport grafana openvpn
 ID_vault    := 9301
 ID_teleport := 9302
 ID_grafana  := 9303
+ID_openvpn  := 9304
 
 .PHONY: rebuild-all all init validate base rebuild-base $(ROLES) $(addprefix rebuild-,$(ROLES))
 
