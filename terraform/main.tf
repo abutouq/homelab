@@ -158,10 +158,10 @@ data "vault_kv_secrets_list_v2" "homelab" {
   name  = "homelab"
 }
 
-data "vault_kv_secret_v2" "prometheus_k8s" {
+# Data sources rather than ephemeral: rendered into cloud-init (see provider.tf).
+data "vault_generic_secret" "prometheus_k8s" {
   count = contains(nonsensitive(data.vault_kv_secrets_list_v2.homelab.names), "prometheus-k8s") ? 1 : 0
-  mount = "secret"
-  name  = "homelab/prometheus-k8s"
+  path  = "secret/homelab/prometheus-k8s"
 }
 
 module "tf_grafana_01" {
@@ -187,10 +187,10 @@ module "tf_grafana_01" {
     for f in fileset("${path.root}/grafana-dashboards", "**/*.json") :
     f => filebase64("${path.root}/grafana-dashboards/${f}")
   }
-  prometheus_k8s = length(data.vault_kv_secret_v2.prometheus_k8s) == 0 ? null : {
-    api_server = data.vault_kv_secret_v2.prometheus_k8s[0].data["api_server"]
-    token      = data.vault_kv_secret_v2.prometheus_k8s[0].data["token"]
-    ca_crt     = data.vault_kv_secret_v2.prometheus_k8s[0].data["ca_crt"]
+  prometheus_k8s = length(data.vault_generic_secret.prometheus_k8s) == 0 ? null : {
+    api_server = data.vault_generic_secret.prometheus_k8s[0].data["api_server"]
+    token      = data.vault_generic_secret.prometheus_k8s[0].data["token"]
+    ca_crt     = data.vault_generic_secret.prometheus_k8s[0].data["ca_crt"]
   }
   # node-exporter on the Proxmox hosts themselves (installed by bootstrap/)
   prometheus_node_targets   = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100", "192.168.0.202:9100"]
@@ -206,8 +206,10 @@ module "tf_grafana_01" {
 # (there's no CRL, so that reissues every profile).
 locals {
   openvpn = {
-    # Not managed here: an A record to the WAN address, plus a router port-forward UDP 1194 -> 192.168.0.24.
+    # Resolves to the (static) WAN address via cloudflare_dns_record.vpn; the router
+    # port-forwards UDP 1194 -> 192.168.0.24 (not managed here).
     remote  = "vpn.homebytes.space"
+    wan_ip  = "185.96.69.137"
     port    = 1194
     clients = ["laptop", "phone"]
   }
@@ -301,6 +303,17 @@ resource "vault_kv_secret_v2" "openvpn_clients" {
   })
 }
 
+# The only public-IP record in the zone: VPN clients connect from outside the LAN.
+# Not proxied, since Cloudflare's proxy doesn't carry UDP.
+resource "cloudflare_dns_record" "vpn" {
+  zone_id = local.cloudflare["zone_id"]
+  name    = local.openvpn.remote
+  type    = "A"
+  content = local.openvpn.wan_ip
+  ttl     = 300
+  proxied = false
+}
+
 # Replaces the OpenVPN server on the old box (192.168.0.158).
 module "tf_openvpn_01" {
   source              = "${path.root}/modules/vm"
@@ -350,9 +363,8 @@ resource "vault_kv_secret_v2" "pihole_admin" {
 }
 
 # Devices and their groups (LAN IPs and device names stay out of this public repo).
-data "vault_kv_secret_v2" "pihole_clients" {
-  mount = "secret"
-  name  = "apps/pihole-clients"
+data "vault_generic_secret" "pihole_clients" {
+  path = "secret/apps/pihole-clients"
 }
 
 locals {
@@ -395,7 +407,7 @@ module "tf_pihole_01" {
     groups  = local.pihole_lists.groups
     adlists = local.pihole_lists.adlists
     domains = local.pihole_lists.domains
-    clients = jsondecode(data.vault_kv_secret_v2.pihole_clients.data_json).clients
+    clients = jsondecode(data.vault_generic_secret.pihole_clients.data_json).clients
   }
 }
 

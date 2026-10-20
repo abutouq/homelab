@@ -42,13 +42,14 @@ ephemeral "vault_kv_secret_v2" "proxmox" {
 
 # A data source, not ephemeral: the token is rendered into the Vault/Teleport cloud-init
 # snippets and zone_id into a DNS record, and neither attribute accepts ephemeral values.
-data "vault_kv_secret_v2" "cloudflare" {
-  mount = "secret"
-  name  = "homelab/cloudflare"
+# vault_generic_secret rather than vault_kv_secret_v2, whose data source is deprecated in
+# favour of the ephemeral one; it reads the same KV v2 secret (path without /data/).
+data "vault_generic_secret" "cloudflare" {
+  path = "secret/homelab/cloudflare"
 }
 
 locals {
-  cloudflare = data.vault_kv_secret_v2.cloudflare.data
+  cloudflare = data.vault_generic_secret.cloudflare.data
 }
 
 provider "proxmox" {

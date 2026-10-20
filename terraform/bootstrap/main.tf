@@ -28,6 +28,7 @@ locals {
       "VM.Allocate", "VM.Audit", "VM.Clone", "VM.Config.CDROM", "VM.Config.CPU",
       "VM.Config.Cloudinit", "VM.Config.Disk", "VM.Config.HWType", "VM.Config.Memory",
       "VM.Config.Network", "VM.Config.Options", "VM.PowerMgmt",
+      "VM.GuestAgent.Audit", # reading VM IPs from the QEMU agent (split out of VM.Monitor in PVE 9)
     ]
     # Image builds (../../packer).
     Packer = [
