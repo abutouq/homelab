@@ -26,6 +26,32 @@ write_files:
     encoding: b64
     content: ${openvpn_tls_crypt_b64}
 
+%{ if length(openvpn_totp_secrets) > 0 ~}
+  # 2FA. The verify script runs after openvpn drops to nobody:nogroup, hence the group.
+%{ for name, secret in openvpn_totp_secrets ~}
+  - path: /etc/openvpn/server/totp/${name}
+    owner: root:nogroup
+    permissions: '0640'
+    content: ${secret}
+%{ endfor ~}
+  - path: /etc/openvpn/server/verify-totp.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/sh
+      # auth-user-pass-verify via-file: $1 holds the username and password lines,
+      # and OpenVPN sets $common_name from the (already verified) client cert.
+      # Pass only if the username is the cert's name and the password is that
+      # client's current TOTP code (one 30 s step of clock skew either way).
+      user=$(sed -n 1p "$1")
+      code=$(sed -n 2p "$1")
+      [ "$user" = "$common_name" ] || exit 1
+      case "$code" in [0-9][0-9][0-9][0-9][0-9][0-9]) ;; *) exit 1 ;; esac
+      secret_file="/etc/openvpn/server/totp/$common_name"
+      [ -r "$secret_file" ] || exit 1
+      exec oathtool --totp --base32 --window 1 "$(cat "$secret_file")" "$code" >/dev/null
+%{ endif ~}
+
   # Relative paths resolve against /etc/openvpn/server (openvpn-server@'s WorkingDirectory).
   - path: /etc/openvpn/server/server.conf
     owner: root:root
@@ -45,6 +71,14 @@ write_files:
       tls-version-min 1.2
       data-ciphers AES-256-GCM:CHACHA20-POLY1305
       remote-cert-tls client
+%{ if length(openvpn_totp_secrets) > 0 ~}
+      # 2FA: the cert plus a TOTP code as the password (verify-totp.sh).
+      script-security 2
+      auth-user-pass-verify /etc/openvpn/server/verify-totp.sh via-file
+      # After the first login, renegotiations (hourly) and reconnects present a
+      # server-issued token instead of asking for a fresh code.
+      auth-gen-token
+%{ endif ~}
 %{ for r in openvpn_push_routes ~}
       push "route ${r}"
 %{ endfor ~}

@@ -202,6 +202,9 @@ module "tf_grafana_01" {
 # than built on the VM, so rebuilding tf-openvpn-01 keeps the CA and every client keeps working.
 # Add a device: append it to openvpn.clients and apply, then
 #   vault kv get -field=<name> secret/apps/openvpn-clients > <name>.ovpn
+#   vault kv get -field=<name>-totp secret/apps/openvpn-clients | qrencode -t ansiutf8
+# and scan the QR code into an authenticator app. Connecting asks for a username
+# (the client's name) and password (the app's current 6-digit code).
 # Revoke one: remove it from the list and apply -replace=tls_self_signed_cert.openvpn_ca
 # (there's no CRL, so that reissues every profile).
 locals {
@@ -286,12 +289,26 @@ resource "random_bytes" "openvpn_tls_crypt" {
   length = 256
 }
 
-# One inline .ovpn profile per client: vault kv get -field=<name> secret/apps/openvpn-clients
+# TOTP secrets for the second factor: 32 base32 characters (160 bits, the RFC 4226 size).
+resource "random_password" "openvpn_totp" {
+  for_each         = toset(local.openvpn.clients)
+  length           = 32
+  upper            = true
+  lower            = false
+  numeric          = false
+  special          = true
+  override_special = "234567" # with A-Z, exactly the base32 alphabet
+}
+
+# Per client: <name> is its inline .ovpn profile, <name>-totp the otpauth:// URI
+# for its authenticator app (see the comment above locals.openvpn).
 resource "vault_kv_secret_v2" "openvpn_clients" {
   mount = "secret"
   name  = "apps/openvpn-clients"
-  data_json = jsonencode({
+  data_json = jsonencode(merge({
     for name in local.openvpn.clients : name => templatefile("${path.root}/openvpn/client.ovpn.tftpl", {
+      name          = name
+      totp          = true
       remote        = local.openvpn.remote
       port          = local.openvpn.port
       server_name   = tls_cert_request.openvpn_server.subject[0].common_name
@@ -300,7 +317,10 @@ resource "vault_kv_secret_v2" "openvpn_clients" {
       key           = tls_private_key.openvpn_client[name].private_key_pem
       tls_crypt_key = local.openvpn_tls_crypt_key
     })
-  })
+    }, {
+    for name in local.openvpn.clients : "${name}-totp" =>
+    "otpauth://totp/homelab-vpn:${name}?secret=${random_password.openvpn_totp[name].result}&issuer=homelab-vpn"
+  }))
 }
 
 # The only public-IP record in the zone: VPN clients connect from outside the LAN.
@@ -342,6 +362,7 @@ module "tf_openvpn_01" {
     server_cert   = tls_locally_signed_cert.openvpn_server.cert_pem
     server_key    = tls_private_key.openvpn_server.private_key_pem
     tls_crypt_key = local.openvpn_tls_crypt_key
+    totp_secrets  = { for name, p in random_password.openvpn_totp : name => p.result }
   }
 }
 

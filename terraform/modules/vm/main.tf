@@ -69,6 +69,7 @@ locals {
     openvpn_server_cert_b64 = var.openvpn == null ? "" : base64encode(var.openvpn.server_cert)
     openvpn_server_key_b64  = var.openvpn == null ? "" : base64encode(var.openvpn.server_key)
     openvpn_tls_crypt_b64   = var.openvpn == null ? "" : base64encode(var.openvpn.tls_crypt_key)
+    openvpn_totp_secrets    = var.openvpn == null ? {} : var.openvpn.totp_secrets
   }
 }
 

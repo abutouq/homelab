@@ -11,6 +11,11 @@ remote-cert-tls server
 verify-x509-name ${server_name} name
 data-ciphers AES-256-GCM:CHACHA20-POLY1305
 verb 3
+%{ if totp ~}
+# 2FA: username "${name}", password = the authenticator app's current code.
+auth-user-pass
+auth-nocache
+%{ endif ~}
 <ca>
 ${trimspace(ca_cert)}
 </ca>
