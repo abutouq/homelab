@@ -1,0 +1,67 @@
+#cloud-config
+# Immich in Docker. Library and Postgres both live on the data disk (scsi1,
+# mounted at /data), so recreating the VM keeps everything. On first boot with
+# an empty /data/postgres, the newest dump in /data/library/backups (Immich's
+# own daily backups) is restored before Immich starts.
+manage_etc_hosts: true
+
+packages:
+  - docker.io
+  - docker-compose-v2
+
+write_files:
+  - path: /opt/immich/docker-compose.yml
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${immich_compose_b64}
+  - path: /opt/immich/.env
+    owner: root:root
+    permissions: '0600'
+    content: |
+      UPLOAD_LOCATION=/data/library
+      DB_DATA_LOCATION=/data/postgres
+      IMMICH_VERSION=${immich_version}
+      DB_PASSWORD=${immich_db_password}
+      DB_USERNAME=postgres
+      DB_DATABASE_NAME=immich
+  - path: /opt/immich/setup.sh
+    owner: root:root
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      disk=/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+      udevadm settle
+      # Normally formatted on the Proxmox host when the library was seeded;
+      # a blank disk (fresh install, no library to seed) is formatted here.
+      blkid "$disk" >/dev/null || mkfs.ext4 -L immich-data "$disk"
+      mkdir -p /data
+      grep -q 'LABEL=immich-data' /etc/fstab || echo 'LABEL=immich-data /data ext4 defaults,discard,nofail 0 2' >> /etc/fstab
+      mountpoint -q /data || mount /data
+      mkdir -p /data/library /data/postgres
+
+      cd /opt/immich
+      . ./.env
+      docker compose pull -q
+      if [ -z "$(ls -A /data/postgres)" ]; then
+        dump=$(ls -1 /data/library/backups/immich-db-backup-*.sql.gz 2>/dev/null | sort | tail -n1 || true)
+        if [ -n "$dump" ]; then
+          echo "restoring $dump"
+          docker compose create
+          docker compose start database
+          # healthy only after initdb's temporary server is gone
+          until [ "$(docker inspect -f '{{.State.Health.Status}}' immich_postgres)" = healthy ]; do sleep 2; done
+          sleep 10
+          # Restore steps from https://docs.immich.app/administration/backup-and-restore
+          gunzip --stdout "$dump" \
+            | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" \
+            | docker exec -i immich_postgres psql --dbname=postgres --username="$DB_USERNAME"
+          # The dump carries the old server's password hash; reset it to ours.
+          docker exec immich_postgres psql --username="$DB_USERNAME" -c "ALTER USER $DB_USERNAME WITH PASSWORD '$DB_PASSWORD'"
+        fi
+      fi
+      docker compose up -d
+
+runcmd:
+  - /opt/immich/setup.sh

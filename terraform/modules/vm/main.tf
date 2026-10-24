@@ -8,6 +8,8 @@ locals {
     var.grafana_role == "server" ? "grafana.yaml.tftpl" : "",
     var.pihole_role == "server" ? "pihole.yaml.tftpl" : "",
     var.openvpn_role == "server" ? "openvpn.yaml.tftpl" : "",
+    var.immich_role == "server" ? "immich.yaml.tftpl" : "",
+    var.nas_role == "server" ? "nas.yaml.tftpl" : "",
   ])
   has_role   = length(local.role_parts) > 0
   needs_acme = var.teleport_role == "control_plane" || var.vault_role == "server"
@@ -70,6 +72,15 @@ locals {
     openvpn_server_key_b64  = var.openvpn == null ? "" : base64encode(var.openvpn.server_key)
     openvpn_tls_crypt_b64   = var.openvpn == null ? "" : base64encode(var.openvpn.tls_crypt_key)
     openvpn_totp_secrets    = var.openvpn == null ? {} : var.openvpn.totp_secrets
+    # immich role
+    immich_compose_b64 = var.immich == null ? "" : base64encode(var.immich.compose)
+    immich_version     = var.immich == null ? "" : var.immich.version
+    immich_db_password = var.immich == null ? "" : var.immich.db_password
+    # nas role
+    nas_share       = var.nas == null ? "" : var.nas.share
+    nas_user        = var.nas == null ? "" : var.nas.user
+    nas_password    = var.nas == null ? "" : var.nas.password
+    nas_hosts_allow = var.nas == null ? [] : var.nas.hosts_allow
   }
 }
 
@@ -142,6 +153,29 @@ resource "proxmox_virtual_environment_vm" "this" {
     }
   }
 
+  # Only with a data disk: the template's boot disk is restated as scsi0 (same
+  # store and size, so nothing moves) next to the data VM's volume on scsi1.
+  # Destroying this VM leaves that volume alone, since the data VM owns it.
+  dynamic "disk" {
+    for_each = var.data_disk == null ? [] : [1]
+    content {
+      datastore_id = "local-lvm"
+      interface    = "scsi0"
+      size         = 20
+    }
+  }
+  dynamic "disk" {
+    for_each = var.data_disk == null ? [] : [var.data_disk]
+    content {
+      datastore_id      = disk.value.datastore_id
+      path_in_datastore = disk.value.path_in_datastore
+      file_format       = "raw"
+      size              = disk.value.size
+      interface         = "scsi1"
+      discard           = "on"
+    }
+  }
+
   initialization {
     # A custom user-data file replaces the generated one; base.yaml.tftpl
     # creates the ubuntu user in that case.
@@ -198,6 +232,14 @@ resource "proxmox_virtual_environment_vm" "this" {
     precondition {
       condition     = var.openvpn_role == "none" || nonsensitive(var.openvpn != null)
       error_message = "openvpn is required when openvpn_role = \"server\"."
+    }
+    precondition {
+      condition     = var.immich_role == "none" || (nonsensitive(var.immich != null) && var.data_disk != null)
+      error_message = "immich and data_disk are required when immich_role = \"server\"."
+    }
+    precondition {
+      condition     = var.nas_role == "none" || (nonsensitive(var.nas != null) && var.data_disk != null)
+      error_message = "nas and data_disk are required when nas_role = \"server\"."
     }
     precondition {
       condition     = var.teleport_role == "none" || nonsensitive(var.teleport_join_token != null)

@@ -29,6 +29,8 @@ locals {
       "VM.Config.Cloudinit", "VM.Config.Disk", "VM.Config.HWType", "VM.Config.Memory",
       "VM.Config.Network", "VM.Config.Options", "VM.PowerMgmt",
       "VM.GuestAgent.Audit", # reading VM IPs from the QEMU agent (split out of VM.Monitor in PVE 9)
+      # downloading cloud images (proxmox_virtual_environment_download_file, ../big.tf)
+      "Datastore.AllocateTemplate", "Sys.Audit", "Sys.Modify",
     ]
     # Image builds (../../packer).
     Packer = [
@@ -70,6 +72,42 @@ locals {
     systemctl enable --now prometheus-node-exporter
   EOT
 
+  # big's two extra disks as one ZFS mirror, "tank", with tank/vm as the thin
+  # Proxmox storage "tank-vm" (Immich and NAS data volumes, ../big.tf).
+  # The pool starts on the SSD alone, which held only an empty filesystem. The
+  # HDD holds the old Immich library until ../big.tf has copied and checksummed
+  # it; set big_mirror = true after checking Immich, and the HDD is wiped and
+  # attached as the second half of the mirror.
+  big_mirror = false
+  big_disks = {
+    ssd = "/dev/disk/by-id/ata-KINGSTON_SA400S37480G_50026B7682F18E49"
+    hdd = "/dev/disk/by-id/ata-WDC_WD5000AZLX-75K2TA0_WD-WCC6Z1CAE36J"
+  }
+
+  big_storage_script = <<-EOT
+    set -e
+    ssd=${local.big_disks.ssd}
+    hdd=${local.big_disks.hdd}
+    if ! zpool list tank >/dev/null 2>&1; then
+      if lsblk -no MOUNTPOINTS "$ssd" | grep -q .; then echo "$ssd is mounted, refusing to wipe it" >&2; exit 1; fi
+      for p in "$ssd"-part*; do if [ -e "$p" ]; then wipefs -a "$p"; fi; done
+      wipefs -a "$ssd"
+      zpool create -f -o ashift=12 -O compression=lz4 -O atime=off -O xattr=sa tank "$ssd"
+    fi
+    zfs list tank/vm >/dev/null 2>&1 || zfs create tank/vm
+    pvesm status --storage tank-vm >/dev/null 2>&1 || \
+      pvesm add zfspool tank-vm --pool tank/vm --content images --sparse 1 --nodes big
+    %{~if local.big_mirror}
+    if ! zpool status -P tank | grep -q "$(basename "$hdd")"; then
+      [ -e /root/.immich-seed-verified ] || { echo "Immich library copy not verified yet, refusing to wipe $hdd" >&2; exit 1; }
+      if lsblk -no MOUNTPOINTS "$hdd" | grep -q .; then echo "$hdd is mounted, refusing to wipe it" >&2; exit 1; fi
+      wipefs -a "$hdd"
+      zpool attach -f tank "$ssd" "$hdd"
+    fi
+    zpool status tank
+    %{~endif}
+  EOT
+
   cluster_script = join("\n", concat([<<-EOT
     set -e
     # 'snippets' on the cluster-wide 'local' storage: holds the VMs' cloud-init files
@@ -106,6 +144,21 @@ resource "terraform_data" "host" {
 
   provisioner "remote-exec" {
     inline = [local.host_script]
+  }
+}
+
+resource "terraform_data" "big_storage" {
+  triggers_replace = sha256(local.big_storage_script)
+
+  connection {
+    type        = "ssh"
+    host        = local.proxmox_hosts["big"]
+    user        = "root"
+    private_key = file("~/.ssh/id_ed25519")
+  }
+
+  provisioner "remote-exec" {
+    inline = [local.big_storage_script]
   }
 }
 

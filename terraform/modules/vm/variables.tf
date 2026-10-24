@@ -201,6 +201,59 @@ variable "openvpn_role" {
   }
 }
 
+variable "data_disk" {
+  type = object({
+    datastore_id      = string
+    path_in_datastore = string # a volume owned by a separate, never-started data VM
+    size              = number
+  })
+  default     = null
+  description = "Persistent disk attached as scsi1, owned by another VM so it survives destroying/recreating this one. Shows up in the guest as /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1."
+}
+
+variable "immich_role" {
+  type        = string
+  default     = "none"
+  description = "Immich role to configure via cloud-init on first boot: \"none\" or \"server\" (Immich in Docker on data_disk mounted at /data, web UI on localhost:2283). Restores the newest dump in /data/library/backups when Postgres has no data yet."
+  validation {
+    condition     = contains(["none", "server"], var.immich_role)
+    error_message = "immich_role must be one of: none, server."
+  }
+}
+
+variable "immich" {
+  type = object({
+    compose     = string # docker-compose.yml contents
+    version     = string # IMMICH_VERSION; must match the dump being restored
+    db_password = string
+  })
+  default     = null
+  sensitive   = true
+  description = "immich role: the compose file, pinned Immich version and Postgres password."
+}
+
+variable "nas_role" {
+  type        = string
+  default     = "none"
+  description = "NAS role to configure via cloud-init on first boot: \"none\" or \"server\" (Samba share of data_disk mounted at /srv/share)."
+  validation {
+    condition     = contains(["none", "server"], var.nas_role)
+    error_message = "nas_role must be one of: none, server."
+  }
+}
+
+variable "nas" {
+  type = object({
+    share       = optional(string, "share")
+    user        = string
+    password    = string
+    hosts_allow = list(string) # CIDRs allowed to connect (Samba hosts allow)
+  })
+  default     = null
+  sensitive   = true
+  description = "nas role: share name, the one Samba user and the networks allowed in."
+}
+
 variable "openvpn" {
   type = object({
     port          = optional(number, 1194)

@@ -1,0 +1,57 @@
+#cloud-config
+# Samba file share of the data disk (scsi1, mounted at /srv/share). One user,
+# reachable only from hosts_allow (the LAN; VPN clients arrive NATed from
+# tf-openvpn-01's LAN address).
+manage_etc_hosts: true
+
+packages:
+  - samba
+
+write_files:
+  - path: /etc/samba/smb.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [global]
+        server role = standalone server
+        workgroup = WORKGROUP
+        map to guest = never
+        server min protocol = SMB2_10
+        hosts allow = ${join(" ", nas_hosts_allow)} 127.0.0.1
+        hosts deny = 0.0.0.0/0
+        # macOS Finder/Time Machine metadata
+        vfs objects = fruit streams_xattr
+        fruit:metadata = stream
+
+      [${nas_share}]
+        path = /srv/share
+        valid users = ${nas_user}
+        read only = no
+        create mask = 0664
+        directory mask = 2775
+  - path: /root/nas-password
+    owner: root:root
+    permissions: '0600'
+    content: ${nas_password}
+  - path: /root/nas-setup.sh
+    owner: root:root
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      disk=/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+      udevadm settle
+      blkid "$disk" >/dev/null || mkfs.ext4 -L nas-data "$disk"
+      mkdir -p /srv/share
+      grep -q 'LABEL=nas-data' /etc/fstab || echo 'LABEL=nas-data /srv/share ext4 defaults,discard,nofail 0 2' >> /etc/fstab
+      mountpoint -q /srv/share || mount /srv/share
+
+      id ${nas_user} >/dev/null 2>&1 || useradd -M -s /usr/sbin/nologin ${nas_user}
+      chown ${nas_user}:${nas_user} /srv/share
+      chmod 2775 /srv/share
+      pw=$(cat /root/nas-password)
+      printf '%s\n%s\n' "$pw" "$pw" | smbpasswd -s -a ${nas_user}
+      systemctl restart smbd
+
+runcmd:
+  - /root/nas-setup.sh
