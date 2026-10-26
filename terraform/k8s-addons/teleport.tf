@@ -14,14 +14,15 @@ data "vault_kv_secret_v2" "teleport" {
 # adding an app is a pod rollout, not a control-plane rebuild. Targets must be
 # reachable from pods: in-cluster services, or LAN ports that aren't bound to
 # localhost (Prometheus, Alertmanager and Uptime Kuma on .158 are, so they stay
-# on the old Teleport there; Pi-hole's UI is served by tf-pihole-01's own agent,
-# see teleport_apps in ../main.tf). Each app is served at <name>.teleport.homebytes.space.
+# on the old Teleport there; Pi-hole's and Immich's UIs are served by their VMs' own
+# agents, see teleport_apps in ../main.tf and ../big.tf -- never list an app here
+# too, since Teleport spreads sessions across every agent serving the same name).
+# Each app is served at <name>.teleport.homebytes.space.
 locals {
   teleport_apps = [
     { name = "argocd", uri = "http://argocd-server.argocd.svc.cluster.local:80" }, # argocd-server runs --insecure
     { name = "grafana", uri = "http://192.168.0.23:3000" },                        # tf-grafana-01
     { name = "vault", uri = "https://vault.homebytes.space" },                     # tf-vault-01, by name: its cert is for the domain
-    { name = "immich", uri = "http://192.168.0.158:2283" },
     { name = "localstack", uri = "http://192.168.0.158:4566" },
   ]
 }
