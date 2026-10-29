@@ -247,11 +247,12 @@ variable "nas" {
     share       = optional(string, "share")
     user        = string
     password    = string
-    hosts_allow = list(string) # CIDRs allowed to connect (Samba hosts allow)
+    hosts_allow = list(string)               # CIDRs allowed to connect (Samba hosts allow)
+    nfs_clients = optional(list(string), []) # IPs allowed to mount /srv/share/k8s over NFS (K8s nodes); empty = no NFS
   })
   default     = null
   sensitive   = true
-  description = "nas role: share name, the one Samba user and the networks allowed in."
+  description = "nas role: share name, the one Samba user, the networks allowed in, and the NFS clients for Kubernetes volumes."
 }
 
 variable "openvpn" {

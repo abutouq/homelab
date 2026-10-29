@@ -81,6 +81,7 @@ locals {
     nas_user        = var.nas == null ? "" : var.nas.user
     nas_password    = var.nas == null ? "" : var.nas.password
     nas_hosts_allow = var.nas == null ? [] : var.nas.hosts_allow
+    nas_nfs_clients = var.nas == null ? [] : var.nas.nfs_clients
   }
 }
 

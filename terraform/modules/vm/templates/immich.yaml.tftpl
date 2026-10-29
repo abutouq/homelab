@@ -6,6 +6,8 @@
 manage_etc_hosts: true
 
 packages:
+  # template 9400 enables the agent; without it Terraform waits ~15 min per refresh
+  - qemu-guest-agent
   - docker.io
   - docker-compose-v2
 
@@ -64,4 +66,5 @@ write_files:
       docker compose up -d
 
 runcmd:
+  - systemctl start qemu-guest-agent
   - /opt/immich/setup.sh

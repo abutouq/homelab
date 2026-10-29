@@ -224,5 +224,7 @@ module "tf_nas_01" {
     user        = "nas"
     password    = random_password.nas.result
     hosts_allow = ["192.168.0.0/24"]
+    # NFS for the nas-nfs StorageClass (k8s-addons/nfs-csi.tf): the cluster's nodes only.
+    nfs_clients = [for m in [module.tf_control_plane_01, module.tf_control_plane_02, module.tf_worker_01, module.tf_worker_02] : split("/", m.ip_address)[0]]
   }
 }

@@ -1,11 +1,18 @@
 #cloud-config
 # Samba file share of the data disk (scsi1, mounted at /srv/share). One user,
 # reachable only from hosts_allow (the LAN; VPN clients arrive NATed from
-# tf-openvpn-01's LAN address).
+# tf-openvpn-01's LAN address). With nfs_clients, /srv/share/k8s is also
+# exported over NFS for Kubernetes volumes (csi-driver-nfs, one subdirectory
+# per PV) and hidden from the Samba share.
 manage_etc_hosts: true
 
 packages:
+  # template 9400 enables the agent; without it Terraform waits ~15 min per refresh
+  - qemu-guest-agent
   - samba
+%{ if length(nas_nfs_clients) > 0 ~}
+  - nfs-kernel-server
+%{ endif ~}
 
 write_files:
   - path: /etc/samba/smb.conf
@@ -29,10 +36,22 @@ write_files:
         read only = no
         create mask = 0664
         directory mask = 2775
+%{ if length(nas_nfs_clients) > 0 ~}
+        # Kubernetes volumes (NFS): not for browsing or editing over SMB
+        veto files = /k8s/
+%{ endif ~}
   - path: /root/nas-password
     owner: root:root
     permissions: '0600'
     content: ${nas_password}
+%{ if length(nas_nfs_clients) > 0 ~}
+  # no_root_squash: the CSI driver creates and chowns each PV's directory as root.
+  - path: /etc/exports
+    owner: root:root
+    permissions: '0644'
+    content: |
+      /srv/share/k8s ${join(" ", [for c in nas_nfs_clients : "${c}(rw,sync,no_subtree_check,no_root_squash)"])}
+%{ endif ~}
   - path: /root/nas-setup.sh
     owner: root:root
     permissions: '0700'
@@ -52,6 +71,15 @@ write_files:
       pw=$(cat /root/nas-password)
       printf '%s\n%s\n' "$pw" "$pw" | smbpasswd -s -a ${nas_user}
       systemctl restart smbd
+%{ if length(nas_nfs_clients) > 0 ~}
+
+      mkdir -p /srv/share/k8s
+      chown root:root /srv/share/k8s
+      chmod 0755 /srv/share/k8s
+      exportfs -ra
+      systemctl enable --now nfs-server
+%{ endif ~}
 
 runcmd:
+  - systemctl start qemu-guest-agent
   - /root/nas-setup.sh
