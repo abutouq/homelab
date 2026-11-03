@@ -1,0 +1,174 @@
+---
+# Bootstraps the new HA cluster: kube-vip VIP, `kubeadm init` on the first
+# control-plane node, `kubeadm join --control-plane` on the rest, plain
+# `kubeadm join` on workers, then fetches the admin kubeconfig locally.
+#
+# Prerequisite: ansible/k8s_node_setup.yml must have already completed
+# against every host in this inventory (containerd/kubeadm/kubelet/kubectl
+# already installed).
+#
+# Idempotent: safe to re-run. Already-initialized/joined nodes are skipped
+# via stat-file guards. Join tokens and the control-plane certificate key are
+# regenerated fresh on every run rather than cached anywhere, since they
+# expire (token ~24h, cert key ~2h by default) — nothing sensitive is ever
+# written to disk on the control machine, it only lives in Ansible's
+# in-memory facts for the duration of this run.
+
+- name: Bootstrap first control-plane node
+  hosts: "{{ groups['control_plane'][0] }}"
+  remote_user: ubuntu
+  become: true
+  vars:
+    control_plane_vip: "192.168.0.19"
+    pod_network_cidr: "10.100.0.0/16" # must match terraform/k8s-addons/variables.tf's pod_cidr
+    kube_vip_version: "v0.8.0"
+  tasks:
+    - name: Check whether this node is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: admin_conf
+
+    - name: Ensure /etc/kubernetes/manifests exists
+      file:
+        path: /etc/kubernetes/manifests
+        state: directory
+        mode: '0755'
+
+    - name: Pull kube-vip image
+      command: "ctr image pull ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }}"
+      when: not admin_conf.stat.exists
+      changed_when: false
+
+    - name: Generate kube-vip static pod manifest
+      shell: >
+        ctr run --rm --net-host
+        ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }} kube-vip-init
+        /kube-vip manifest pod
+        --interface {{ ansible_default_ipv4.interface }}
+        --address {{ control_plane_vip }}
+        --port 6443
+        --controlplane
+        --arp
+        --leaderElection
+        > /etc/kubernetes/manifests/kube-vip.yaml
+      args:
+        creates: /etc/kubernetes/manifests/kube-vip.yaml
+      when: not admin_conf.stat.exists
+
+    - name: Run kubeadm init
+      command: >
+        kubeadm init
+        --control-plane-endpoint={{ control_plane_vip }}:6443
+        --upload-certs
+        --pod-network-cidr={{ pod_network_cidr }}
+      when: not admin_conf.stat.exists
+
+    - name: Get worker join command
+      command: kubeadm token create --print-join-command
+      register: worker_join_command
+      changed_when: false
+
+    - name: Generate a fresh control-plane certificate key
+      command: kubeadm init phase upload-certs --upload-certs
+      register: upload_certs_output
+      changed_when: false
+
+    - name: Extract certificate key from upload-certs output
+      set_fact:
+        certificate_key: "{{ upload_certs_output.stdout_lines[-1] }}"
+
+    - name: Build control-plane join command
+      set_fact:
+        control_plane_join_command: "{{ worker_join_command.stdout }} --control-plane --certificate-key {{ certificate_key }}"
+
+    - name: Create .kube directory for ubuntu user
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        mode: '0755'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy admin.conf to ubuntu user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Ensure local ~/.kube directory exists
+      delegate_to: localhost
+      become: false
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.kube"
+        state: directory
+        mode: '0755'
+
+    - name: Fetch admin.conf to local machine
+      fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config-new-cluster"
+        flat: yes
+
+- name: Join remaining control-plane nodes
+  hosts: "{{ groups['control_plane'][1:] }}"
+  remote_user: ubuntu
+  become: true
+  vars:
+    control_plane_vip: "192.168.0.19"
+    kube_vip_version: "v0.8.0"
+    first_cp: "{{ groups['control_plane'][0] }}"
+  tasks:
+    - name: Check whether this node already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Ensure /etc/kubernetes/manifests exists
+      file:
+        path: /etc/kubernetes/manifests
+        state: directory
+        mode: '0755'
+
+    - name: Pull kube-vip image
+      command: "ctr image pull ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }}"
+      when: not kubelet_conf.stat.exists
+      changed_when: false
+
+    - name: Generate kube-vip static pod manifest
+      shell: >
+        ctr run --rm --net-host
+        ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }} kube-vip-init
+        /kube-vip manifest pod
+        --interface {{ ansible_default_ipv4.interface }}
+        --address {{ control_plane_vip }}
+        --port 6443
+        --controlplane
+        --arp
+        --leaderElection
+        > /etc/kubernetes/manifests/kube-vip.yaml
+      args:
+        creates: /etc/kubernetes/manifests/kube-vip.yaml
+      when: not kubelet_conf.stat.exists
+
+    - name: Join this node as a control-plane node
+      command: "{{ hostvars[first_cp]['control_plane_join_command'] }}"
+      when: not kubelet_conf.stat.exists
+
+- name: Join worker nodes
+  hosts: workers
+  remote_user: ubuntu
+  become: true
+  vars:
+    first_cp: "{{ groups['control_plane'][0] }}"
+  tasks:
+    - name: Check whether this node already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Join this node as a worker
+      command: "{{ hostvars[first_cp]['worker_join_command'].stdout }}"
+      when: not kubelet_conf.stat.exists
