@@ -1,5 +1,10 @@
 # Ansible Playbooks
 
+VMs, Vault, Teleport, cert-manager, Calico, node-exporter and Teleport apps
+are now built by [../packer/](../packer/) and [../terraform/](../terraform/)
+(cloud-init + `terraform/k8s-addons/`); the playbooks that used to do that
+have been removed. What's left is kubeadm bootstrap and old-cluster upkeep.
+
 Run from this directory (an `ansible.cfg` here sets `hosts.ini` as the default
 inventory): `ansible-playbook <playbook>`
 
@@ -13,7 +18,7 @@ Or from the repo root: `ansible-playbook -i ansible/hosts.ini ansible/<playbook>
 
 ## Cluster bootstrap
 - `k8s_node_setup.yml` — base node setup: kernel modules, swap, sysctl, containerd, kubeadm/kubelet/kubectl install
-- `install_calico.yml` — one-time migration: remove leftover Flannel CNI state and finalize the Calico operator install (CNI is now Calico)
+- `bootstrap_new_cluster.yml` — kube-vip VIP + `kubeadm init`/`join` for the Terraform-built HA cluster (inventory: `proxmox-k8s-cluster-hosts.ini`)
 
 ## Maintenance / troubleshooting
 - `reset_cni_and_iscsi.yml` — reset CNI state and ensure iSCSI is installed
@@ -21,14 +26,7 @@ Or from the repo root: `ansible-playbook -i ansible/hosts.ini ansible/<playbook>
 - `check_longhorn_preflight.yml` — run Longhorn CLI preflight checks
 - `install_longhornctl.yml` — install the `longhornctl` binary
 
-## Observability & access
-- `install_node_exporter.yml` — install and run Prometheus Node Exporter
-- `install_teleport.yml` — deploy the Teleport Kubernetes agent (Helm)
-- `install_cert_manager.yml` — deploy cert-manager (Helm) and the
-  `letsencrypt-prod` ClusterIssuer (Let's Encrypt via Cloudflare DNS-01); the
-  Cloudflare API token is synced in from LocalStack Secrets Manager by
-  `cert-manager/cloudflare-token-sync-cronjob.yaml`, not stored in git — see
-  [../cert-manager/](../cert-manager/)
+## Cluster add-ons
 - `install_argocd_image_updater.yml` — zero-touch bootstrap of
   argocd-image-updater: scoped ArgoCD account + RBAC, a fresh API token
   (pushed to LocalStack), the `argocd-image-updater-secret` /
@@ -46,36 +44,11 @@ and they prompt for sudo per run (`--ask-become-pass`) rather than storing
 a password.
 - `deploy_external_service.yml` — copy a `docker-compose.yml` from
   `external-services/<service>/` to a standalone host and `docker compose up -d`
-- `manage_teleport_app.yml` — idempotently add/update/remove a
-  `app_service` entry on the self-hosted Teleport control plane
-  (`external-services/teleport/teleport.yaml`), restarting `teleport.service`
-  only if it actually changed. Run with `-e app_name=<x> -e app_uri=<y>`
-  for a single ad-hoc add/update (or `-e app_state=absent` to remove); run
-  with no `-e app_name` at all to reconcile **every** app declared in
-  `teleport_apps.yml` in one pass
-- `teleport_apps.yml` — declarative list of every app that should be
-  registered in Teleport (name + uri); the source of truth the reconcile-all
-  mode above reads from — add new services here, not just via a one-off run
-- `files/manage_teleport_app.py` — the YAML-editing script the playbook above runs
-- `install_awscli.yml` — install the AWS CLI (via snap) on a standalone
-  host and sanity-check it runs (`aws sts get-caller-identity` with
-  placeholder credentials — the call is expected to fail auth, it just
-  confirms the binary works); also installs Certbot plus the
-  `certbot-dns-cloudflare` plugin (`snap set certbot
-  trust-plugin-with-root=ok` first, or the plugin's flags come back as
-  "unrecognized arguments"), used by
-  [`external-services/teleport/renew-teleport-cert.sh`](../external-services/teleport/renew-teleport-cert.sh)
-- `install_vault.yml` — install HashiCorp Vault (native apt package +
-  systemd, UI enabled) on a standalone host; listener is bound to
-  `127.0.0.1:8200` only, proxied via Teleport's `app_service`
-  (`teleport_apps.yml`'s `vault` entry) rather than exposed on the LAN.
-  Does **not** run `vault operator init` — that's a one-time manual step,
-  see the playbook header
-- `templates/vault.hcl.j2` — the Vault config the playbook above deploys
 
 ## Inventory & configuration
 - `hosts.ini` — `masters` / `workers` groups, with `homelab` (all nodes) and
   an empty `new` group for nodes pending cluster join
+- `proxmox-k8s-cluster-hosts.ini` — the Terraform-built HA cluster (`control_plane` / `workers`)
 - `external-hosts.ini` — standalone hosts (outside the k8s cluster), currently just `192.168.0.158`
 - `ansible.cfg` — sets the default inventory path for this directory
 - `group_vars/all.yml` — cluster-wide settings shared by playbooks (e.g. `kubernetes_version`)
