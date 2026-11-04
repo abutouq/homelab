@@ -53,6 +53,7 @@ locals {
     node_targets           = var.prometheus_node_targets
     pihole_targets         = var.prometheus_pihole_targets
     prometheus_rules       = var.prometheus_rules
+    has_data_disk          = var.data_disk != null
     teleport_apps          = var.teleport_apps
     # pihole role
     pihole_admin_password  = var.pihole_admin_password == null ? "" : var.pihole_admin_password
