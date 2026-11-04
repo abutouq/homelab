@@ -105,14 +105,14 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "node_hwmon_temp_celsius{instance=\"192.168.0.2:9100\"} > 0",
+          "expr": "node_hwmon_temp_celsius{instance=\"192.168.0.203:9100\"} > 0",
           "instant": false,
           "legendFormat": "{{chip}} - {{sensor}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "pve (192.168.0.2)",
+      "title": "pve (192.168.0.203)",
       "type": "timeseries"
     },
     {
