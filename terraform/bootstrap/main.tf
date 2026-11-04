@@ -12,13 +12,13 @@ locals {
   vault_addr = "https://vault.homebytes.space"
 
   proxmox_hosts = {
-    pve               = "192.168.0.2"
+    pve               = "192.168.0.203" # replacement hardware; not in the cluster yet
     pve-02            = "192.168.0.200"
     external-services = "192.168.0.201"
     big               = "192.168.0.202"
   }
-  # Any node works for cluster-wide config (/etc/pve is shared).
-  api_host = local.proxmox_hosts["pve"]
+  # Any cluster member works for cluster-wide config (/etc/pve is shared).
+  api_host = local.proxmox_hosts["pve-02"]
 
   roles = {
     # The main stack's provider (../provider.tf).
