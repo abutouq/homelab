@@ -234,8 +234,54 @@ write_files:
     encoding: gz+b64
     content: ${b64}
 %{ endfor ~}
+%{ if has_data_disk ~}
+
+  # --- Persistent history (data_disk on scsi1, owned by a never-started data
+  # VM): Prometheus TSDB and Loki chunks are bind-mounted from /data, so a
+  # rebuilt VM picks up where the old one stopped. Grafana itself stays
+  # ephemeral: everything in it is provisioned from this file.
+  - path: /usr/local/sbin/monitoring-data-setup
+    owner: root:root
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      disk=/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+      udevadm settle
+      blkid "$disk" >/dev/null || mkfs.ext4 -L monitoring-data "$disk"
+      mkdir -p /data
+      grep -q 'LABEL=monitoring-data' /etc/fstab || cat >> /etc/fstab <<'EOF'
+      LABEL=monitoring-data /data ext4 defaults,discard,nofail 0 2
+      /data/prometheus /var/lib/prometheus none bind,nofail,x-systemd.requires-mounts-for=/data 0 0
+      /data/loki /var/lib/loki none bind,nofail,x-systemd.requires-mounts-for=/data 0 0
+      EOF
+      mountpoint -q /data || mount /data
+      mkdir -p /data/prometheus /data/loki /var/lib/prometheus /var/lib/loki
+      mountpoint -q /var/lib/prometheus || mount /var/lib/prometheus
+      mountpoint -q /var/lib/loki || mount /var/lib/loki
+      # A rebuilt Packer image may hand out different uids.
+      chown -R prometheus:prometheus /data/prometheus
+      chown -R loki:loki /data/loki
+  # Never start against the bare /var/lib dirs if the disk didn't attach:
+  # that would silently fork history onto the boot disk.
+  - path: /etc/systemd/system/prometheus.service.d/data.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Unit]
+      RequiresMountsFor=/var/lib/prometheus
+  - path: /etc/systemd/system/loki.service.d/data.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Unit]
+      RequiresMountsFor=/var/lib/loki
+%{ endif ~}
 
 runcmd:
+%{ if has_data_disk ~}
+  - /usr/local/sbin/monitoring-data-setup
+%{ endif ~}
   - install -d -o loki /var/lib/loki
   - install -d /var/lib/grafana/dashboards
   - chown -R grafana:grafana /var/lib/grafana/dashboards
