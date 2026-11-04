@@ -114,7 +114,7 @@ variable "grafana_admin_password" {
 variable "grafana_dashboards" {
   type        = map(string)
   default     = {}
-  description = "Dashboard files for the grafana role: relative path (subdirectory = Grafana folder) -> base64 JSON."
+  description = "Dashboard files for the grafana role: relative path (subdirectory = Grafana folder) -> gzip+base64 JSON (base64gzip)."
 }
 
 variable "grafana_root_url" {
@@ -138,6 +138,12 @@ variable "prometheus_node_targets" {
   type        = list(string)
   default     = []
   description = "grafana role: host:port node-exporter targets scraped directly (e.g. the Proxmox hosts)."
+}
+
+variable "prometheus_rules" {
+  type        = map(string)
+  default     = {}
+  description = "grafana role: Prometheus rule files: filename -> base64 YAML, loaded from /etc/prometheus/rules/."
 }
 
 variable "dns_servers" {

@@ -1,0 +1,24 @@
+groups:
+  - name: node-hardware
+    rules:
+      # NVMe "Composite" temperature (hwmon temp1) is what the drive's own
+      # WCTEMP/CCTEMP thresholds are measured against. Sensor 2 (temp3) runs
+      # ~10-15°C hotter by design, so alerting on it would be noisy.
+      # pve's SK hynix BC511: warning 84°C, critical 85°C (smartctl -c).
+      - alert: NvmeTemperatureHigh
+        expr: node_hwmon_temp_celsius{chip=~"nvme.*", sensor="temp1"} >= 78
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "NVMe running hot on {{ $labels.instance }}"
+          description: "{{ $labels.chip }} composite temperature is {{ $value | humanize }}°C (>= 78°C for 10m). Check heatsink/airflow before it reaches the drive's throttle threshold."
+
+      - alert: NvmeTemperatureCritical
+        expr: node_hwmon_temp_celsius{chip=~"nvme.*", sensor="temp1"} >= 83
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe near thermal throttle on {{ $labels.instance }}"
+          description: "{{ $labels.chip }} composite temperature is {{ $value | humanize }}°C (>= 83°C for 2m). Drive will throttle at ~84°C and may drop off the PCIe bus."

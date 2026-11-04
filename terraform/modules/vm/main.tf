@@ -52,6 +52,7 @@ locals {
     k8s_ca_crt             = var.prometheus_k8s == null ? "" : var.prometheus_k8s.ca_crt
     node_targets           = var.prometheus_node_targets
     pihole_targets         = var.prometheus_pihole_targets
+    prometheus_rules       = var.prometheus_rules
     teleport_apps          = var.teleport_apps
     # pihole role
     pihole_admin_password  = var.pihole_admin_password == null ? "" : var.pihole_admin_password

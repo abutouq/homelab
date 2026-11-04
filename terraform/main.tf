@@ -183,9 +183,16 @@ module "tf_grafana_01" {
   memory_mb              = 3072
   grafana_admin_password = random_password.grafana_admin.result
   # Every *.json under grafana-dashboards/ (subdirectory = Grafana folder).
+  # Gzipped: Proxmox rejects cloud-init snippets over 1 MiB, and node-exporter-full
+  # alone is ~640 KB of JSON.
   grafana_dashboards = {
     for f in fileset("${path.root}/grafana-dashboards", "**/*.json") :
-    f => filebase64("${path.root}/grafana-dashboards/${f}")
+    f => base64gzip(file("${path.root}/grafana-dashboards/${f}"))
+  }
+  # Every *.yaml under prometheus-rules/ (alerting/recording rule groups).
+  prometheus_rules = {
+    for f in fileset("${path.root}/prometheus-rules", "*.yaml") :
+    f => filebase64("${path.root}/prometheus-rules/${f}")
   }
   prometheus_k8s = length(data.vault_generic_secret.prometheus_k8s) == 0 ? null : {
     api_server = data.vault_generic_secret.prometheus_k8s[0].data["api_server"]
@@ -396,8 +403,8 @@ module "tf_pihole_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-pihole-01"
   vm_id               = 9009
-  node_name           = "pve" # node .2
-  template_vm_id      = 9000
+  node_name           = local.big.node # node .202
+  template_vm_id      = proxmox_virtual_environment_vm.template_big.vm_id
   ip_address          = "192.168.0.158/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
