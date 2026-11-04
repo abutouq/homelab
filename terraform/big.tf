@@ -6,21 +6,11 @@
 # flip big_mirror in bootstrap/ to add the HDD to the pool -- that last step
 # wipes the HDD, so it's off until the copy has been checked in Immich.
 
-locals {
-  big = {
-    node      = "big"
-    host      = "192.168.0.202"
-    datastore = "tank-vm"
-    # The HDD holding the old library until bootstrap/ mirrors it into the pool.
-    old_library_disk = "/dev/disk/by-id/ata-WDC_WD5000AZLX-75K2TA0_WD-WCC6Z1CAE36J"
-  }
-}
-
 # Same image as template 9000 on pve, as an "import" volume so the template can import it.
 resource "proxmox_download_file" "noble_cloudimg_big" {
   content_type = "import"
   datastore_id = "local"
-  node_name    = local.big.node
+  node_name    = local.nodes.big.name
   url          = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
   file_name    = "noble-server-cloudimg-amd64.qcow2"
   overwrite    = false # don't replace the template every time Ubuntu republishes "current"
@@ -29,8 +19,8 @@ resource "proxmox_download_file" "noble_cloudimg_big" {
 # big's clone source. Templates sit on node-local storage, so each node needs its own.
 resource "proxmox_virtual_environment_vm" "template_big" {
   name      = "ubuntu-2404-cloudinit-template"
-  node_name = local.big.node
-  vm_id     = 9400
+  node_name = local.nodes.big.name
+  vm_id     = local.nodes.big.template
   template  = true
   started   = false
 
@@ -74,21 +64,21 @@ resource "proxmox_virtual_environment_vm" "template_big" {
 # attach by path. Recreating either VM leaves its data here.
 resource "proxmox_virtual_environment_vm" "data_big" {
   name      = "big-data-disks"
-  node_name = local.big.node
+  node_name = local.nodes.big.name
   vm_id     = 9013
   started   = false
   on_boot   = false
 
   # Immich: library + Postgres. Quota-like cap; grow with qm disk resize + resize2fs.
   disk {
-    datastore_id = local.big.datastore
+    datastore_id = local.nodes.big.datastore
     interface    = "scsi0"
     file_format  = "raw"
     size         = 300
   }
   # NAS share
   disk {
-    datastore_id = local.big.datastore
+    datastore_id = local.nodes.big.datastore
     interface    = "scsi1"
     file_format  = "raw"
     size         = 100
@@ -109,7 +99,7 @@ resource "terraform_data" "immich_seed" {
 
   connection {
     type        = "ssh"
-    host        = local.big.host
+    host        = local.nodes.big.host
     user        = "root"
     private_key = file("~/.ssh/id_ed25519")
   }
@@ -126,7 +116,7 @@ resource "terraform_data" "immich_seed" {
       trap 'umount /mnt/old-library 2>/dev/null; umount /mnt/immich-data' EXIT
       if [ -e /mnt/immich-data/.seeded ]; then echo "already seeded"; exit 0; fi
 
-      mount -o ro,noload ${local.big.old_library_disk} /mnt/old-library
+      mount -o ro,noload ${local.nodes.big.old_library_disk} /mnt/old-library
       rsync -aHAX --info=progress2 /mnt/old-library/immich-library/ /mnt/immich-data/library/
       diffs=$(rsync -aHAXc --dry-run --itemize-changes /mnt/old-library/immich-library/ /mnt/immich-data/library/ | wc -l)
       if [ "$diffs" -ne 0 ]; then echo "checksum pass found $diffs differences" >&2; exit 1; fi
@@ -157,7 +147,7 @@ module "tf_immich_01" {
   depends_on          = [terraform_data.immich_seed]
   vm_name             = "tf-immich-01"
   vm_id               = 9011
-  node_name           = local.big.node
+  node_name           = local.nodes.big.name
   template_vm_id      = proxmox_virtual_environment_vm.template_big.vm_id
   ip_address          = "192.168.0.25/24"
   gateway             = "192.168.0.1"
@@ -172,13 +162,13 @@ module "tf_immich_01" {
   cpu_cores = 2
   memory_mb = 6144
   data_disk = {
-    datastore_id      = local.big.datastore
+    datastore_id      = local.nodes.big.datastore
     path_in_datastore = proxmox_virtual_environment_vm.data_big.disk[0].path_in_datastore
     size              = proxmox_virtual_environment_vm.data_big.disk[0].size
   }
   immich_role = "server"
   immich = {
-    compose = file("${path.root}/../external-services/immich/docker-compose.yml")
+    compose = file("${path.root}/immich/docker-compose.yml")
     # The version that wrote the dumps being restored; upgrade after the restore.
     version     = "v3.1.0"
     db_password = random_password.immich_db.result
@@ -205,7 +195,7 @@ module "tf_nas_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-nas-01"
   vm_id               = 9012
-  node_name           = local.big.node
+  node_name           = local.nodes.big.name
   template_vm_id      = proxmox_virtual_environment_vm.template_big.vm_id
   ip_address          = "192.168.0.26/24"
   gateway             = "192.168.0.1"
@@ -215,7 +205,7 @@ module "tf_nas_01" {
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
   data_disk = {
-    datastore_id      = local.big.datastore
+    datastore_id      = local.nodes.big.datastore
     path_in_datastore = proxmox_virtual_environment_vm.data_big.disk[1].path_in_datastore
     size              = proxmox_virtual_environment_vm.data_big.disk[1].size
   }

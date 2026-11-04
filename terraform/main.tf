@@ -50,8 +50,8 @@ module "tf_control_plane_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-01"
   vm_id               = 9001
-  node_name           = "pve" # node .2
-  template_vm_id      = 9000
+  node_name           = local.nodes.pve.name
+  template_vm_id      = local.nodes.pve.template
   ip_address          = "192.168.0.3/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -68,8 +68,8 @@ module "tf_control_plane_02" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-02"
   vm_id               = 9002
-  node_name           = "pve-02" # node .200
-  template_vm_id      = 9100
+  node_name           = local.nodes.pve02.name
+  template_vm_id      = local.nodes.pve02.template
   ip_address          = "192.168.0.4/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -86,8 +86,8 @@ module "tf_worker_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-worker-01"
   vm_id               = 9003
-  node_name           = "pve" # node .2
-  template_vm_id      = 9000
+  node_name           = local.nodes.pve.name
+  template_vm_id      = local.nodes.pve.template
   ip_address          = "192.168.0.10/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -103,8 +103,8 @@ module "tf_worker_02" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-worker-02"
   vm_id               = 9004
-  node_name           = "pve-02" # node .200
-  template_vm_id      = 9100
+  node_name           = local.nodes.pve02.name
+  template_vm_id      = local.nodes.pve02.template
   ip_address          = "192.168.0.11/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -120,8 +120,8 @@ module "tf_teleport_apps_01" {
   source               = "${path.root}/modules/vm"
   vm_name              = "tf-teleport-apps-01"
   vm_id                = 9006
-  node_name            = "external-services" # node .201
-  template_vm_id       = 9302                # Packer: packer/teleport.pkr.hcl
+  node_name            = local.nodes.external_services.name
+  template_vm_id       = 9302 # Packer: packer/teleport.pkr.hcl
   image_baked          = true
   ip_address           = "192.168.0.21/24"
   gateway              = "192.168.0.1"
@@ -135,8 +135,8 @@ module "tf_vault_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-vault-01"
   vm_id               = 9007
-  node_name           = "external-services" # node .201
-  template_vm_id      = 9301                # Packer: packer/vault.pkr.hcl
+  node_name           = local.nodes.external_services.name
+  template_vm_id      = 9301 # Packer: packer/vault.pkr.hcl
   image_baked         = true
   ip_address          = "192.168.0.22/24"
   gateway             = "192.168.0.1"
@@ -164,12 +164,34 @@ data "vault_generic_secret" "prometheus_k8s" {
   path  = "secret/homelab/prometheus-k8s"
 }
 
+# Never started: only owns Prometheus + Loki history, which tf-grafana-01
+# attaches by path. Recreating the monitoring VM leaves the data here.
+resource "proxmox_virtual_environment_vm" "data_grafana" {
+  name      = "grafana-data-disk"
+  node_name = local.nodes.external_services.name
+  vm_id     = 9014
+  started   = false
+  on_boot   = false
+
+  # Prometheus TSDB + Loki chunks, 30d retention each. Grow with qm disk resize + resize2fs.
+  disk {
+    datastore_id = "local-lvm"
+    interface    = "scsi0"
+    file_format  = "raw"
+    size         = 40
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 module "tf_grafana_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-grafana-01"
   vm_id               = 9008
-  node_name           = "external-services" # node .201
-  template_vm_id      = 9303                # Packer: packer/grafana.pkr.hcl
+  node_name           = local.nodes.external_services.name
+  template_vm_id      = 9303 # Packer: packer/grafana.pkr.hcl
   image_baked         = true
   ip_address          = "192.168.0.23/24"
   gateway             = "192.168.0.1"
@@ -180,7 +202,12 @@ module "tf_grafana_01" {
   # teleport.homebytes.space still resolves to .158; drop this after the DNS cutover.
   teleport_proxy_ip = split("/", module.tf_teleport_apps_01.ip_address)[0]
   # Grafana + Prometheus + Loki on one VM (was 2 GB for Grafana alone).
-  memory_mb              = 3072
+  memory_mb = 3072
+  data_disk = {
+    datastore_id      = "local-lvm"
+    path_in_datastore = proxmox_virtual_environment_vm.data_grafana.disk[0].path_in_datastore
+    size              = proxmox_virtual_environment_vm.data_grafana.disk[0].size
+  }
   grafana_admin_password = random_password.grafana_admin.result
   # Every *.json under grafana-dashboards/ (subdirectory = Grafana folder).
   # Gzipped: Proxmox rejects cloud-init snippets over 1 MiB, and node-exporter-full
@@ -200,7 +227,7 @@ module "tf_grafana_01" {
     ca_crt     = data.vault_generic_secret.prometheus_k8s[0].data["ca_crt"]
   }
   # node-exporter on the Proxmox hosts themselves (installed by bootstrap/)
-  prometheus_node_targets   = ["192.168.0.2:9100", "192.168.0.200:9100", "192.168.0.201:9100", "192.168.0.202:9100"]
+  prometheus_node_targets   = sort([for n in local.nodes : "${n.host}:9100"])
   prometheus_pihole_targets = ["${split("/", module.tf_pihole_01.ip_address)[0]}:9617"]
 }
 
@@ -346,8 +373,8 @@ module "tf_openvpn_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-openvpn-01"
   vm_id               = 9010
-  node_name           = "external-services" # node .201, where the Packer template is
-  template_vm_id      = 9304                # Packer: packer/openvpn.pkr.hcl
+  node_name           = local.nodes.external_services.name # where the Packer template is
+  template_vm_id      = 9304                               # Packer: packer/openvpn.pkr.hcl
   image_baked         = true
   ip_address          = "192.168.0.24/24"
   gateway             = "192.168.0.1"
@@ -403,7 +430,7 @@ module "tf_pihole_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-pihole-01"
   vm_id               = 9009
-  node_name           = local.big.node # node .202
+  node_name           = local.nodes.big.name
   template_vm_id      = proxmox_virtual_environment_vm.template_big.vm_id
   ip_address          = "192.168.0.158/24"
   gateway             = "192.168.0.1"
