@@ -7,7 +7,7 @@ resource "helm_release" "calico" {
   chart            = "tigera-operator"
   namespace        = "tigera-operator"
   create_namespace = true
-  version          = "v3.29.0" # match ansible/install_calico.yml's version for consistency
+  version          = "v3.29.0"
 
   values = [
     yamlencode({
