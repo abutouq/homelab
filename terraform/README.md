@@ -50,11 +50,9 @@ Pods resolve `teleport.homebytes.space` through Pi-hole and Cloudflare, not the 
 | `tf_control_plane_02` | tf-control-plane-02 | 9002 | pve-02 | 9100 | 192.168.0.4/24 |
 | `tf_worker_01` | tf-worker-01 | 9003 | pve | 9000 | 192.168.0.10/24 |
 | `tf_worker_02` | tf-worker-02 | 9004 | pve-02 | 9100 | 192.168.0.11/24 |
-| `tf_external_services_01` | tf-external-services-01 | 9005 | external-services | 9200 | 192.168.0.20/24 |
 
 `192.168.0.19` is reserved for the kube-vip control-plane VIP — it's not a VM and isn't Terraform-managed, it's assigned by `ansible/bootstrap_new_cluster.yml`.
 
-`tf_external_services_01` is **not** part of the K8s cluster the rest of this table provisions — it's a plain Ubuntu VM on the `external-services` node, intended to run Docker Compose stacks like the ones currently on `192.168.0.158` (see `../external-services/README.md`). It doesn't go through `k8s_node_setup.yml`/`bootstrap_new_cluster.yml`; once it's up, provision it like any other standalone host via `../ansible/external-hosts.ini` (add its IP there) and `../ansible/deploy_external_service.yml`.
 
 ### `modules/vm/`
 
@@ -115,7 +113,7 @@ terraform apply
 2. `../ansible/k8s_node_setup.yml` → OS/package prep on all 4 VMs.
 3. `../ansible/bootstrap_new_cluster.yml` → kube-vip + `kubeadm init`/`join`, produces `~/.kube/config-new-cluster`.
 4. `terraform/k8s-addons/` → `apply` — CNI + addons, including ArgoCD.
-5. Teleport apps come from `local.teleport_apps` in `k8s-addons/teleport.tf`, served by the kube agent. `../ansible/manage_teleport_app.yml` only manages the old Teleport on 192.168.0.158.
+5. Teleport apps come from `local.teleport_apps` in `k8s-addons/teleport.tf`, served by the kube agent.
 
 ## Gotchas learned the hard way
 
