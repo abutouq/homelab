@@ -8,11 +8,6 @@
 # this map, so referencing it back here would be a cycle.
 locals {
   nodes = {
-    pve = {
-      name     = "pve"
-      host     = "192.168.0.2"
-      template = 9000
-    }
     pve02 = {
       name     = "pve-02"
       host     = "192.168.0.200"
@@ -31,6 +26,11 @@ locals {
       datastore = "tank-vm"
       # The HDD holding the old Immich library until bootstrap/ mirrors it into the pool.
       old_library_disk = "/dev/disk/by-id/ata-WDC_WD5000AZLX-75K2TA0_WD-WCC6Z1CAE36J"
+    }
+    pve = {
+      name     = "pve"
+      host     = "192.168.0.203"
+      template = 9000
     }
   }
 }
