@@ -1,0 +1,128 @@
+- name: Proxmox kernel update (rolling, one host at a time)
+  hosts: proxmox
+  become: false
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    # 7.0.14-28: three months of fixes incl. TCP/net use-after-free (see CVE-2026-98432 notes)
+    kernel_version: "7.0.14-28-pve"
+    # Set -e wait_for_k8s=false to skip the Kubernetes readiness gate.
+    wait_for_k8s: true
+  tasks:
+
+    # -------------------------
+    # Pre-flight
+    # -------------------------
+
+    - name: Check cluster quorum
+      command: pvecm status
+      register: pvecm
+      changed_when: false
+      failed_when: "'Quorate:          Yes' not in pvecm.stdout"
+
+    - name: Get running kernel
+      command: uname -r
+      register: running_kernel
+      changed_when: false
+
+    - name: Skip host if already on the target kernel
+      meta: end_host
+      when: running_kernel.stdout == kernel_version
+
+    - name: Record VMs that are running now
+      shell: qm list | awk 'NR>1 && $3=="running" {print $1}'
+      register: running_vms
+      changed_when: false
+
+    - name: Record Kubernetes nodes hosted here
+      shell: qm list | awk 'NR>1 && $2 ~ /^tf-(control-plane|worker)-/ {print $2}'
+      register: k8s_vms
+      changed_when: false
+
+    # -------------------------
+    # Install
+    # -------------------------
+
+    - name: Install kernel package
+      apt:
+        name: "proxmox-kernel-{{ kernel_version }}-signed"
+        state: present
+        update_cache: yes
+
+    - name: Make sure no kernel is pinned (newest is booted by default)
+      command: proxmox-boot-tool kernel list
+      register: kernel_list
+      changed_when: false
+      failed_when: "'Manually selected kernels:\nNone.' not in kernel_list.stdout"
+
+    # -------------------------
+    # Reboot
+    # -------------------------
+
+    # pve-guests shuts VMs down cleanly on reboot and starts onboot=1 VMs afterwards.
+    - name: Reboot into the new kernel
+      reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 30
+
+    - name: Verify running kernel
+      command: uname -r
+      register: new_kernel
+      changed_when: false
+      failed_when: new_kernel.stdout != kernel_version
+
+    # -------------------------
+    # Wait for the host to be healthy before moving on
+    # -------------------------
+
+    - name: Wait for cluster quorum
+      command: pvecm status
+      register: pvecm_after
+      changed_when: false
+      until: "'Quorate:          Yes' in pvecm_after.stdout"
+      retries: 30
+      delay: 10
+
+    # pve-guests starts onboot VMs one by one; stopping early races with it.
+    - name: Wait for onboot VMs to finish starting
+      command: systemctl is-active pve-guests
+      register: pve_guests
+      changed_when: false
+      failed_when: false
+      until: pve_guests.stdout == "active"
+      retries: 30
+      delay: 10
+
+    # onboot=1 VMs that were deliberately stopped (e.g. tf-openvpn-01) come back up on boot.
+    - name: Stop VMs that were not running before the reboot
+      shell: |
+        for id in $(qm list | awk 'NR>1 && $3=="running" {print $1}'); do
+          case " {{ running_vms.stdout_lines | join(' ') }} " in
+            *" $id "*) ;;
+            *) qm shutdown "$id" --timeout 120 --forceStop 1 && echo "stopped $id" ;;
+          esac
+        done
+      register: restopped
+      changed_when: restopped.stdout | length > 0
+
+    - name: Wait for previously running VMs to be running again
+      command: qm status {{ item }}
+      register: vm_status
+      changed_when: false
+      until: "'status: running' in vm_status.stdout"
+      retries: 30
+      delay: 10
+      loop: "{{ running_vms.stdout_lines }}"
+
+    # kubectl wait fails at once while the API is unreachable: with two control planes,
+    # rebooting either one costs etcd quorum and kube-vip drops the VIP until it is back.
+    - name: Wait for this host's Kubernetes nodes to be Ready
+      command: kubectl wait --for=condition=Ready node/{{ item }} --timeout=60s
+      delegate_to: localhost
+      register: k8s_ready
+      changed_when: false
+      until: k8s_ready.rc == 0
+      retries: 20
+      delay: 15
+      loop: "{{ k8s_vms.stdout_lines }}"
+      when: wait_for_k8s | bool
