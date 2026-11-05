@@ -447,7 +447,7 @@ module "tf_pihole_01" {
   pihole_role           = "server"
   pihole_admin_password = random_password.pihole_admin.result
   pihole = {
-    image          = "pihole/pihole:2026.09.0"
+    image          = "pihole/pihole:2026.10.1"
     exporter_image = "ekofr/pihole-exporter:v1.2.0"
     timezone       = "Asia/Amman"
     upstreams      = ["1.1.1.1", "1.0.0.1"]
