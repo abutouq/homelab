@@ -20,7 +20,8 @@ externalSecrets:
     vaultKey: apps/gitlab-registry
 
 # Storage class for the bots' state volumes; "" = the cluster default (proxmox-lvm).
-storageClassName: ""
+# Immutable on an existing PVC: changing it means a new PVC name in the templates.
+storageClassName: nas-nfs
 
 infraBrief:
   enabled: true

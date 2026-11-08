@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: sre-bot-state
+  name: sre-bot-state-nas
   labels:
     {{- include "homelab-bots.labels" . | nindent 4 }}
   annotations:
@@ -65,7 +65,7 @@ spec:
       volumes:
         - name: state
           persistentVolumeClaim:
-            claimName: sre-bot-state
+            claimName: sre-bot-state-nas
 {{- range $mode, $schedule := .Values.sreBot.schedules }}
 ---
 apiVersion: batch/v1
@@ -116,6 +116,6 @@ spec:
           volumes:
             - name: state
               persistentVolumeClaim:
-                claimName: sre-bot-state
+                claimName: sre-bot-state-nas
 {{- end }}
 {{- end }}

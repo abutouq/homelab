@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: infra-brief-data
+  name: infra-brief-nas
   labels:
     {{- include "homelab-bots.labels" . | nindent 4 }}
   annotations:
@@ -67,6 +67,6 @@ spec:
           volumes:
             - name: data
               persistentVolumeClaim:
-                claimName: infra-brief-data
+                claimName: infra-brief-nas
 {{- end }}
 {{- end }}
