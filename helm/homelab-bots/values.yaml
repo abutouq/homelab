@@ -80,9 +80,9 @@ careerOps:
   claudeCodeVersion: "2.1.325"
   # cv_md: the CV as markdown. Personal, so Vault, not this public repo.
   vaultKey: apps/career-ops
-  # Same Telegram chat and Claude token as the infra brief.
+  # Its own bot and chat (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), stored next to cv_md.
   telegram:
-    vaultKey: apps/infra-briefs-bot
+    vaultKey: apps/career-ops
   claudeToken:
     vaultKey: apps/kids-app
     property: CLAUDE_CODE_OAUTH_TOKEN
