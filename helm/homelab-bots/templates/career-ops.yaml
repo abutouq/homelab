@@ -1,13 +1,16 @@
 {{- if .Values.careerOps.enabled }}
 {{- $c := .Values.careerOps }}
-# career-ops (https://career-ops.org) portal scan: `node scan.mjs` reads public
-# job-board APIs and appends new postings to data/pipeline.md. No LLM, no tokens.
-# Evaluate the inbox afterwards with `/career-ops pipeline` in Claude Code,
-# pointing CAREER_OPS_DATA_DIR at this volume's NAS share.
+# career-ops (https://career-ops.org), once a day:
+#   1. scan     `node scan.mjs` reads public job boards, keeps remote roles whose
+#               titles match, appends them to data/pipeline.md (no tokens)
+#   2. match    batch runner in match mode: `claude -p` scores each new posting
+#               against cv.md (1-5) into reports/ and the tracker
+#   3. notify   matches at or above minScore go to Telegram
 #
 # Config comes from values only: each run rebuilds portals.yml (upstream's
 # template + careerOps.portals deep-merged on top) and config/profile.yml.
-# JSON is valid YAML, so the files are written as JSON.
+# JSON is valid YAML, so those files are written as JSON. cv.md comes from
+# Vault (secret/apps/career-ops, field cv_md): this repo is public.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,6 +36,100 @@ data:
     writeFileSync(`${data}/portals.yml`, JSON.stringify(portals, null, 2) + '\n');
     mkdirSync(`${data}/config`, { recursive: true });
     writeFileSync(`${data}/config/profile.yml`, JSON.stringify(JSON.parse(readFileSync(profile, 'utf-8')), null, 2) + '\n');
+  notify.mjs: |
+    // Sends this run's matches (completed in batch-state.tsv now, not before,
+    // score >= MIN_SCORE) to Telegram, best first. Silent when there are none.
+    import { readFileSync, readdirSync, existsSync } from 'node:fs';
+    const [stateBefore, stateAfter, reportsDir] = process.argv.slice(2);
+    const minScore = Number(process.env.MIN_SCORE);
+    const rows = (f) => existsSync(f)
+      ? readFileSync(f, 'utf-8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t'))
+      : [];
+    const done = new Set(rows(stateBefore).filter((r) => r[2] === 'completed').map((r) => r[0]));
+    const fresh = rows(stateAfter).filter((r) => r[2] === 'completed' && !done.has(r[0]));
+    const title = (num) => {
+      const f = existsSync(reportsDir) && readdirSync(reportsDir).find((n) => n.startsWith(`${num}-`));
+      const h = f && readFileSync(`${reportsDir}/${f}`, 'utf-8').match(/^#\s+(.+)$/m);
+      return h ? h[1].trim() : '';
+    };
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const hits = fresh
+      .map(([, url, , , , num, score]) => ({ url, num, score: Number(score), title: title(num) }))
+      .filter((h) => h.score >= minScore)
+      .sort((a, b) => b.score - a.score);
+    console.log(`${fresh.length} evaluated this run, ${hits.length} at or above ${minScore}`);
+    if (!hits.length) process.exit(0);
+    const lines = hits.slice(0, 20).map((h) =>
+      `<b>${h.score.toFixed(1)}</b> ${esc(h.title || h.url)}\n${esc(h.url)}\n<i>report ${esc(h.num)}</i>`);
+    const text = `💼 <b>career-ops: ${hits.length} remote match${hits.length > 1 ? 'es' : ''}</b> (of ${fresh.length} scored)\n\n${lines.join('\n\n')}`;
+    const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: text.slice(0, 4096), parse_mode: 'HTML', disable_web_page_preview: true }),
+    });
+    if (!res.ok) { console.error(`telegram: ${res.status} ${await res.text()}`); process.exit(1); }
+  run.sh: |
+    set -euo pipefail
+    D="$CAREER_OPS_DATA_DIR"
+    npm install --omit=dev --no-audit --no-fund --loglevel=error
+    npm install -g --prefix /tmp/claude --no-audit --no-fund --loglevel=error "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
+    export PATH="/tmp/claude/bin:$PATH"
+
+    node /config/render-config.mjs templates/portals.example.yml \
+      /config/portals-overrides.json /config/profile.json "$D"
+    cp /secrets/cv.md "$D/cv.md"
+
+    echo "== scan"
+    # Exit 2 means every board failed; still score what is already queued.
+    node scan.mjs $SCAN_ARGS || echo "scan exited $?, continuing with the existing inbox"
+
+    echo "== match"
+    # The runner keeps its queue and state beside the script, which is an
+    # emptyDir here: restore from the volume and save back on any exit.
+    mkdir -p "$D/batch"
+    for f in batch-input.tsv batch-state.tsv; do
+      if [ -f "$D/batch/$f" ]; then cp "$D/batch/$f" batch/; fi
+    done
+    save() { for f in batch-input.tsv batch-state.tsv; do if [ -f "batch/$f" ]; then cp "batch/$f" "$D/batch/"; fi; done; }
+    trap save EXIT
+    touch batch/batch-state.tsv && cp batch/batch-state.tsv /tmp/state.before
+    node sync-batch-input.mjs
+    ./batch/batch-runner.sh --mode match --limit "$MAX_EVALUATIONS" --parallel "$PARALLEL" || echo "batch runner exited $?"
+    save
+
+    echo "== notify"
+    node /config/notify.mjs /tmp/state.before batch/batch-state.tsv "$D/reports"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: career-ops
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval }}
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: {{ .Values.externalSecrets.storeName }}
+  target:
+    name: career-ops
+  data:
+    - secretKey: cv.md
+      remoteRef:
+        key: {{ $c.vaultKey }}
+        property: cv_md
+    - secretKey: TELEGRAM_BOT_TOKEN
+      remoteRef:
+        key: {{ $c.telegram.vaultKey }}
+        property: TELEGRAM_BOT_TOKEN
+    - secretKey: TELEGRAM_CHAT_ID
+      remoteRef:
+        key: {{ $c.telegram.vaultKey }}
+        property: TELEGRAM_CHAT_ID
+    - secretKey: CLAUDE_CODE_OAUTH_TOKEN
+      remoteRef:
+        key: {{ $c.claudeToken.vaultKey }}
+        property: {{ $c.claudeToken.property }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -41,7 +138,7 @@ metadata:
   labels:
     {{- include "homelab-bots.labels" . | nindent 4 }}
   annotations:
-    # cv.md, portals.yml, profile, tracker and scan-history (the dedup source).
+    # Tracker, reports, batch state and scan-history (the dedup source).
     helm.sh/resource-policy: keep
     argocd.argoproj.io/sync-options: Delete=false
 spec:
@@ -56,10 +153,10 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: career-ops-scan
+  name: career-ops
   labels:
     {{- include "homelab-bots.labels" . | nindent 4 }}
-    app.kubernetes.io/name: career-ops-scan
+    app.kubernetes.io/name: career-ops
 spec:
   schedule: {{ $c.schedule | quote }}
   timeZone: {{ .Values.timeZone }}
@@ -69,18 +166,21 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      # The scan is idempotent; the next scheduled run is the retry.
+      # Scan and batch state are resumable; the next scheduled run is the retry.
       backoffLimit: 0
-      activeDeadlineSeconds: 1800
+      activeDeadlineSeconds: 10800
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: career-ops-scan
+            app.kubernetes.io/name: career-ops
           annotations:
             # Values changes show up as a pod template diff in ArgoCD.
             checksum/config: {{ toJson (list $c.portals $c.profile) | sha256sum }}
         spec:
           restartPolicy: Never
+          # Workers run claude with permissions skipped on untrusted job text:
+          # give the pod nothing in the cluster to reach.
+          automountServiceAccountToken: false
           initContainers:
             # Code is fetched fresh at a pinned commit; personal data stays on the volume.
             - name: fetch
@@ -100,29 +200,44 @@ spec:
                 - name: app
                   mountPath: /app
           containers:
-            - name: scan
+            - name: career-ops
               image: {{ $c.image }}
               imagePullPolicy: IfNotPresent
               workingDir: /app
-              command: ["/bin/bash", "-euc"]
-              args:
-                - |
-                  npm install --omit=dev --no-audit --no-fund --loglevel=error
-                  node /config/render-config.mjs templates/portals.example.yml \
-                    /config/portals-overrides.json /config/profile.json "$CAREER_OPS_DATA_DIR"
-                  exec node scan.mjs {{ join " " $c.scanArgs }}
+              command: ["/bin/bash", "/config/run.sh"]
               env:
                 - name: TZ
                   value: {{ .Values.timeZone }}
                 - name: CAREER_OPS_DATA_DIR
                   value: /data
+                - name: SCAN_ARGS
+                  value: {{ join " " $c.scanArgs | quote }}
+                - name: MAX_EVALUATIONS
+                  value: {{ $c.match.maxPerRun | quote }}
+                - name: PARALLEL
+                  value: {{ $c.match.parallel | quote }}
+                - name: MIN_SCORE
+                  value: {{ $c.match.minScore | quote }}
+                - name: CLAUDE_CODE_VERSION
+                  value: {{ $c.claudeCodeVersion | quote }}
+                # claude refuses --dangerously-skip-permissions as root unless
+                # it is told it is sandboxed; this pod is the sandbox.
+                - name: IS_SANDBOX
+                  value: "1"
                 - name: npm_config_cache
                   value: /tmp/npm
-                # Chromium is already in the image (only used with --verify).
+                # Chromium is already in the image.
                 - name: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
                   value: "1"
                 - name: PLAYWRIGHT_BROWSERS_PATH
                   value: /ms-playwright
+                {{- range list "TELEGRAM_BOT_TOKEN" "TELEGRAM_CHAT_ID" "CLAUDE_CODE_OAUTH_TOKEN" }}
+                - name: {{ . }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: career-ops
+                      key: {{ . }}
+                {{- end }}
               resources:
                 {{- toYaml $c.resources | nindent 16 }}
               volumeMounts:
@@ -130,6 +245,9 @@ spec:
                   mountPath: /app
                 - name: config
                   mountPath: /config
+                  readOnly: true
+                - name: cv
+                  mountPath: /secrets
                   readOnly: true
                 - name: data
                   mountPath: /data
@@ -143,6 +261,12 @@ spec:
             - name: config
               configMap:
                 name: career-ops-config
+            - name: cv
+              secret:
+                secretName: career-ops
+                items:
+                  - key: cv.md
+                    path: cv.md
             - name: data
               persistentVolumeClaim:
                 claimName: career-ops-nas

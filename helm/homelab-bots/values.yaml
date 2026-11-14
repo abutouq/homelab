@@ -66,9 +66,8 @@ sreBot:
     requests: {cpu: 10m, memory: 64Mi}
     limits: {memory: 256Mi}
 
-# career-ops (https://career-ops.org): daily job-portal scan into data/pipeline.md
-# on the career-ops-nas volume. Token-free; evaluating the results is a
-# `/career-ops pipeline` run in Claude Code against that volume.
+# career-ops (https://career-ops.org): daily remote-job scan, CV match with
+# Claude, Telegram digest. See templates/career-ops.yaml for the steps.
 careerOps:
   enabled: true
   schedule: "0 9 * * *"
@@ -78,8 +77,29 @@ careerOps:
   gitImage: alpine/git:v2.54.0
   # Matches the playwright version career-ops' own Dockerfile pins.
   image: mcr.microsoft.com/playwright:v1.64.1-jammy
-  # Add "--verify" to drop expired postings (launches Chromium; raise memory).
+  claudeCodeVersion: "2.1.325"
+  # cv_md: the CV as markdown. Personal, so Vault, not this public repo.
+  vaultKey: apps/career-ops
+  # Same Telegram chat and Claude token as the infra brief.
+  telegram:
+    vaultKey: apps/infra-briefs-bot
+  claudeToken:
+    vaultKey: apps/kids-app
+    property: CLAUDE_CODE_OAUTH_TOKEN
+  # Add "--verify" to drop expired postings (launches Chromium per posting).
   scanArgs: []
+  match:
+    # Each evaluation is one `claude -p` session on the subscription; the
+    # rest of the queue waits for the next day.
+    maxPerRun: 15
+    parallel: 2
+    # Scores are 1-5; only these reach Telegram. Everything is in reports/.
+    minScore: 3.5
+  storage: 2Gi
+  resources:
+    requests: {cpu: 200m, memory: 512Mi}
+    limits: {memory: 2Gi}
+
   # Deep-merged over upstream templates/portals.example.yml (its tracked
   # companies, job boards and negative keywords stay); arrays replace.
   portals:
@@ -95,11 +115,67 @@ careerOps:
         - Cloud Infrastructure
         - Kubernetes
         - word:Infra
-  # config/profile.yml fields the scan reads (location filter, experience filter).
+    # Remote only. Checked against the board's location field.
+    location_filter:
+      allow:
+        - Remote
+        - Anywhere
+        - Worldwide
+        - Global
+        - EMEA
+        - MENA
+        - Middle East
+    # Boards that state a workplace type (Ashby, Lever): remote only; boards
+    # that don't still pass and are left to location_filter.
+    workplace_filter:
+      allow: [remote]
+      include_unknown: true
+    # "Remote" that is really "remote within the US/EU/UK": read from the job
+    # text and checked against profile.location.country.
+    country_eligibility_filter:
+      exclusionary:
+        - must be located in the united states
+        - must reside in the united states
+        - us-based candidates only
+        - remote (us only)
+        - authorized to work in the us
+        - must be based in the uk
+        - right to work in the uk
+        - must be based in the eu
+        - must reside in the eu
+        - eu work permit
+        - must be located in canada
+      inclusive:
+        - worldwide
+        - anywhere in the world
+        - work from anywhere
+        - emea
+        - middle east
+        - mena
+        - jordan
+
+  # config/profile.yml. Only non-identifying fields: name and contacts are in
+  # cv.md (Vault). Match mode scores against the CV alone; the scan reads
+  # location.country, and full-mode runs read the rest.
   profile:
+    candidate:
+      years_of_experience: 12
+    target_roles:
+      primary:
+        - Senior DevOps Engineer
+        - Senior Site Reliability Engineer
+        - Senior Platform Engineer
+        - DevOps Team Lead
+      archetypes:
+        - {name: DevOps / Platform Engineer, level: Senior/Lead, fit: primary}
+        - {name: Site Reliability Engineer, level: Senior, fit: primary}
+        - {name: Cloud Infrastructure Engineer, level: Senior, fit: secondary}
+    compensation:
+      location_flexibility: Remote only
     location:
       country: Jordan
-  storage: 1Gi
-  resources:
-    requests: {cpu: 100m, memory: 256Mi}
-    limits: {memory: 1Gi}
+      city: Amman
+      timezone: Asia/Amman
+    language:
+      output: en
+    spend_tier: standard
