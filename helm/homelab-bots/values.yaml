@@ -65,3 +65,41 @@ sreBot:
   resources:
     requests: {cpu: 10m, memory: 64Mi}
     limits: {memory: 256Mi}
+
+# career-ops (https://career-ops.org): daily job-portal scan into data/pipeline.md
+# on the career-ops-nas volume. Token-free; evaluating the results is a
+# `/career-ops pipeline` run in Claude Code against that volume.
+careerOps:
+  enabled: true
+  schedule: "0 9 * * *"
+  # No release tags on the core repo: pin a main commit and bump it to update.
+  repo: https://github.com/career-ops-hq/career-ops.git
+  ref: 69a78143fcbc8dfdecf45ee326f42b8a3c00ae55
+  gitImage: alpine/git:v2.54.0
+  # Matches the playwright version career-ops' own Dockerfile pins.
+  image: mcr.microsoft.com/playwright:v1.64.1-jammy
+  # Add "--verify" to drop expired postings (launches Chromium; raise memory).
+  scanArgs: []
+  # Deep-merged over upstream templates/portals.example.yml (its tracked
+  # companies, job boards and negative keywords stay); arrays replace.
+  portals:
+    title_filter:
+      positive:
+        - DevOps
+        - SRE
+        - Site Reliability
+        - Platform Engineer
+        - Platform Engineering
+        - Infrastructure Engineer
+        - Cloud Engineer
+        - Cloud Infrastructure
+        - Kubernetes
+        - word:Infra
+  # config/profile.yml fields the scan reads (location filter, experience filter).
+  profile:
+    location:
+      country: Jordan
+  storage: 1Gi
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}

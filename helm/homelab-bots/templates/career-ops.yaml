@@ -1,0 +1,149 @@
+{{- if .Values.careerOps.enabled }}
+{{- $c := .Values.careerOps }}
+# career-ops (https://career-ops.org) portal scan: `node scan.mjs` reads public
+# job-board APIs and appends new postings to data/pipeline.md. No LLM, no tokens.
+# Evaluate the inbox afterwards with `/career-ops pipeline` in Claude Code,
+# pointing CAREER_OPS_DATA_DIR at this volume's NAS share.
+#
+# Config comes from values only: each run rebuilds portals.yml (upstream's
+# template + careerOps.portals deep-merged on top) and config/profile.yml.
+# JSON is valid YAML, so the files are written as JSON.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: career-ops-config
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+data:
+  portals-overrides.json: {{ $c.portals | toJson | quote }}
+  profile.json: {{ $c.profile | toJson | quote }}
+  render-config.mjs: |
+    // Objects merge key by key; arrays and scalars from the override replace.
+    import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+    import { loadYaml } from '/app/lib/yaml-document.mjs';
+    const [base, overrides, profile, data] = process.argv.slice(2);
+    const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    const merge = (a, b) => {
+      if (!isObj(a) || !isObj(b)) return b;
+      const out = { ...a };
+      for (const [k, v] of Object.entries(b)) out[k] = merge(a[k], v);
+      return out;
+    };
+    const portals = merge(loadYaml(readFileSync(base, 'utf-8')) || {}, JSON.parse(readFileSync(overrides, 'utf-8')));
+    writeFileSync(`${data}/portals.yml`, JSON.stringify(portals, null, 2) + '\n');
+    mkdirSync(`${data}/config`, { recursive: true });
+    writeFileSync(`${data}/config/profile.yml`, JSON.stringify(JSON.parse(readFileSync(profile, 'utf-8')), null, 2) + '\n');
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: career-ops-nas
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+  annotations:
+    # cv.md, portals.yml, profile, tracker and scan-history (the dedup source).
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $c.storage }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: career-ops-scan
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+    app.kubernetes.io/name: career-ops-scan
+spec:
+  schedule: {{ $c.schedule | quote }}
+  timeZone: {{ .Values.timeZone }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # The scan is idempotent; the next scheduled run is the retry.
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: career-ops-scan
+          annotations:
+            # Values changes show up as a pod template diff in ArgoCD.
+            checksum/config: {{ toJson (list $c.portals $c.profile) | sha256sum }}
+        spec:
+          restartPolicy: Never
+          initContainers:
+            # Code is fetched fresh at a pinned commit; personal data stays on the volume.
+            - name: fetch
+              image: {{ $c.gitImage }}
+              command: ["/bin/sh", "-euc"]
+              args:
+                - |
+                  cd /app
+                  git init -q .
+                  git remote add origin {{ $c.repo }}
+                  git fetch -q --depth 1 origin {{ $c.ref }}
+                  git checkout -q FETCH_HEAD
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              volumeMounts:
+                - name: app
+                  mountPath: /app
+          containers:
+            - name: scan
+              image: {{ $c.image }}
+              imagePullPolicy: IfNotPresent
+              workingDir: /app
+              command: ["/bin/bash", "-euc"]
+              args:
+                - |
+                  npm install --omit=dev --no-audit --no-fund --loglevel=error
+                  node /config/render-config.mjs templates/portals.example.yml \
+                    /config/portals-overrides.json /config/profile.json "$CAREER_OPS_DATA_DIR"
+                  exec node scan.mjs {{ join " " $c.scanArgs }}
+              env:
+                - name: TZ
+                  value: {{ .Values.timeZone }}
+                - name: CAREER_OPS_DATA_DIR
+                  value: /data
+                - name: npm_config_cache
+                  value: /tmp/npm
+                # Chromium is already in the image (only used with --verify).
+                - name: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+                  value: "1"
+                - name: PLAYWRIGHT_BROWSERS_PATH
+                  value: /ms-playwright
+              resources:
+                {{- toYaml $c.resources | nindent 16 }}
+              volumeMounts:
+                - name: app
+                  mountPath: /app
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: app
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+            - name: config
+              configMap:
+                name: career-ops-config
+            - name: data
+              persistentVolumeClaim:
+                claimName: career-ops-nas
+{{- end }}
