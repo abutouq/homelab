@@ -213,3 +213,25 @@ careerOps:
     language:
       output: en
     spend_tier: standard
+
+# Weekly search for upcoming in-person IT, investment and entrepreneurship
+# events in Jordan (Claude with web search only). New events, and reminders
+# for known ones starting within remindDays, go to Telegram.
+jordanEvents:
+  enabled: true
+  # Sunday morning, the start of the Jordanian work week.
+  schedule: "30 8 * * 0"
+  lookaheadDays: 90
+  remindDays: 7
+  # Already cached on the nodes for career-ops; brings Node 22.
+  image: mcr.microsoft.com/playwright:v1.64.1-jammy
+  claudeCodeVersion: "2.1.325"
+  # Same bot and chat as career-ops (6835986113).
+  telegram:
+    vaultKey: apps/career-ops
+  claudeToken:
+    vaultKey: apps/kids-app
+    property: CLAUDE_CODE_OAUTH_TOKEN
+  resources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 768Mi}

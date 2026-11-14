@@ -1,0 +1,138 @@
+{{- if .Values.jordanEvents.enabled }}
+{{- $e := .Values.jordanEvents }}
+# Jordan networking events: once a week Claude (WebSearch/WebFetch only)
+# looks for upcoming in-person IT, investment and entrepreneurship events in
+# Jordan; new ones and reminders for the coming week go to Telegram.
+# Script: files/jordan-events.mjs. State (events already sent): the volume.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jordan-events
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+data:
+  jordan-events.mjs: |
+    {{- .Files.Get "files/jordan-events.mjs" | nindent 4 }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: jordan-events
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval }}
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: {{ .Values.externalSecrets.storeName }}
+  target:
+    name: jordan-events
+  data:
+    {{- range list "TELEGRAM_BOT_TOKEN" "TELEGRAM_CHAT_ID" }}
+    - secretKey: {{ . }}
+      remoteRef:
+        key: {{ $e.telegram.vaultKey }}
+        property: {{ . }}
+    {{- end }}
+    - secretKey: CLAUDE_CODE_OAUTH_TOKEN
+      remoteRef:
+        key: {{ $e.claudeToken.vaultKey }}
+        property: {{ $e.claudeToken.property }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jordan-events-nas
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+  annotations:
+    # events.json: what was already announced, so nothing is sent twice.
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jordan-events
+  labels:
+    {{- include "homelab-bots.labels" . | nindent 4 }}
+    app.kubernetes.io/name: jordan-events
+spec:
+  schedule: {{ $e.schedule | quote }}
+  timeZone: {{ .Values.timeZone }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # The script retries the claude call itself; don't search twice on failure.
+      backoffLimit: 0
+      activeDeadlineSeconds: 5400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: jordan-events
+          annotations:
+            checksum/script: {{ .Files.Get "files/jordan-events.mjs" | sha256sum }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: jordan-events
+              image: {{ $e.image }}
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-euc"]
+              args:
+                - |
+                  npm install -g --prefix /tmp/claude --no-audit --no-fund --loglevel=error "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
+                  export PATH="/tmp/claude/bin:$PATH"
+                  cd /tmp && exec node /config/jordan-events.mjs
+              env:
+                - name: TZ
+                  value: {{ .Values.timeZone }}
+                - name: DATA_DIR
+                  value: /data
+                - name: LOOKAHEAD_DAYS
+                  value: {{ $e.lookaheadDays | quote }}
+                - name: REMIND_DAYS
+                  value: {{ $e.remindDays | quote }}
+                - name: CLAUDE_CODE_VERSION
+                  value: {{ $e.claudeCodeVersion | quote }}
+                - name: npm_config_cache
+                  value: /tmp/npm
+                {{- range list "TELEGRAM_BOT_TOKEN" "TELEGRAM_CHAT_ID" "CLAUDE_CODE_OAUTH_TOKEN" }}
+                - name: {{ . }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: jordan-events
+                      key: {{ . }}
+                {{- end }}
+              resources:
+                {{- toYaml $e.resources | nindent 16 }}
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: config
+              configMap:
+                name: jordan-events
+            - name: tmp
+              emptyDir: {}
+            - name: data
+              persistentVolumeClaim:
+                claimName: jordan-events-nas
+{{- end }}
