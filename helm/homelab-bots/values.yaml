@@ -115,8 +115,42 @@ careerOps:
         - Cloud Infrastructure
         - Kubernetes
         - word:Infra
-    # Remote only. Checked against the board's location field.
+    # Replaces upstream's boards (mostly Polish/Czech/Indonesian, one enabled)
+    # with remote-only aggregators. Read whole; title_filter and the location
+    # filters below pick the rows.
+    job_boards:
+      - {name: Remotive, provider: remotive, enabled: true}
+      - {name: RemoteOK, provider: remoteok, enabled: true}
+      - {name: We Work Remotely, provider: weworkremotely, enabled: true}
+      - {name: Himalayas, provider: himalayas, enabled: true}
+      - {name: Jobicy, provider: jobicy, enabled: true}
+      - {name: Working Nomads, provider: workingnomads, enabled: true}
+      - {name: HN Who is Hiring, provider: hackernews, enabled: true}
+    # Remote only. Checked against the board's location field, in this order:
+    # always_allow wins, then block drops, then allow must match.
     location_filter:
+      always_allow:
+        - Worldwide
+        - Anywhere
+        - Global
+        - EMEA
+        - MENA
+        - Middle East
+        - Jordan
+      block:
+        - United States
+        - USA
+        - Remote - US
+        - Remote (US
+        - Canada
+        - Americas
+        - LATAM
+        - Mexico
+        - Brazil
+        - Argentina
+        - Remote (EU)
+        - UK or EU
+        - Remote-Friendly (Travel-Required)
       allow:
         - Remote
         - Anywhere
