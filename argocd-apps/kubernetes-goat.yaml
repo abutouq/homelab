@@ -2,9 +2,8 @@
 #
 # INTENTIONALLY VULNERABLE security-training lab (helm/kubernetes-goat),
 # converted as-is from upstream. Deploys into "default" like upstream does.
-# Pushing this file makes the app-of-apps create the Application, but it has
-# no automated sync, so nothing is deployed until you run
-# `argocd app sync kubernetes-goat`. Delete this file to remove it.
+# Auto-synced by the app-of-apps. Delete this file to remove the lab
+# (prune cleans up everything it created).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,3 +18,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
