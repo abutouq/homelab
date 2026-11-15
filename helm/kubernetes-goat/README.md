@@ -11,9 +11,13 @@ one Helm chart. It replaces upstream's `setup-kubernetes-goat.sh` and
 
 | Path | Source (upstream) |
 |---|---|
-| `templates/<scenario>.yaml` | `scenarios/<scenario>/*.yaml`, byte-for-byte, wrapped in `{{- if .Values.<scenario>.enabled }}` |
+| `templates/<scenario>.yaml` | `scenarios/<scenario>/*.yaml`, wrapped in `{{- if .Values.<scenario>.enabled }}`; `namespace: default` → `{{ .Release.Namespace }}` |
 | `charts/metadata-db/` | `scenarios/metadata-db/` (upstream's own Helm chart), unchanged |
-| `access-kubernetes-goat.sh` | `access-kubernetes-goat.sh`, unchanged |
+| `access-kubernetes-goat.sh` | `access-kubernetes-goat.sh`; `default` → `$GOAT_NAMESPACE` (default `kubernetes-goat`) |
+
+Unlike upstream, the lab runs in its own `kubernetes-goat` namespace instead of `default`.
+Where a walkthrough says `default`, use `kubernetes-goat`. `secure-middleware`,
+`big-monolith` and `kube-system/superadmin` keep their upstream namespaces.
 
 The only value that doesn't come from upstream is `metadata-db.fullnameOverride: metadata-db`.
 Without it, the umbrella release would rename the Service to `kubernetes-goat-metadata-db`,
@@ -26,7 +30,7 @@ repo when a scenario calls for them.
 ## Install
 
 ```bash
-helm upgrade --install kubernetes-goat helm/kubernetes-goat -n default
+helm upgrade --install kubernetes-goat helm/kubernetes-goat -n kubernetes-goat --create-namespace
 kubectl get pods -A
 bash helm/kubernetes-goat/access-kubernetes-goat.sh   # http://127.0.0.1:1234
 ```
@@ -34,5 +38,5 @@ bash helm/kubernetes-goat/access-kubernetes-goat.sh   # http://127.0.0.1:1234
 ## Uninstall
 
 ```bash
-helm uninstall kubernetes-goat -n default
+helm uninstall kubernetes-goat -n kubernetes-goat
 ```

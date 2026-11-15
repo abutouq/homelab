@@ -1,8 +1,9 @@
 # Kubernetes Goat — INTENTIONALLY VULNERABLE, converted as-is from upstream.
 #
 # Every template under templates/ is the unmodified upstream manifest from
-# scenarios/<name>/, wrapped only in an enable toggle. Install into the
-# "default" namespace (as upstream's setup-kubernetes-goat.sh does).
+# scenarios/<name>/, wrapped only in an enable toggle. The one edit:
+# hardcoded "namespace: default" is replaced with the release namespace, so
+# the lab runs in its own namespace (kubernetes-goat) instead of default.
 
 insecureRbac:       { enabled: true }   # scenarios/insecure-rbac/setup.yaml
 batchCheck:         { enabled: true }   # scenarios/batch-check/job.yaml

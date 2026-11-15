@@ -6,6 +6,8 @@
 INSECURE=""
 KUBECONFIG_ARG=""
 export KUBECTL_INSECURE=""
+# Namespace the chart was installed into (upstream used "default")
+GOAT_NAMESPACE="${GOAT_NAMESPACE:-kubernetes-goat}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -45,13 +47,13 @@ fi
 echo 'Creating port forward for all the Kubernetes Goat resources to locally. We will be using 1230 to 1236 ports locally!'
 
 # Exposing Sensitive keys in code bases Scenario
-export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace default -l "app=build-code" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace "$GOAT_NAMESPACE" -l "app=build-code" -o jsonpath="{.items[0].metadata.name}")
 while true; do
-    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.phase}')
     if [ "$POD_STATUS" == "Running" ]; then
-        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.containerStatuses[*].ready}')
+        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.containerStatuses[*].ready}')
         if [[ "$READY" == *"true"* ]]; then
-            kubectl $KUBECTL_INSECURE port-forward $POD_NAME --address 0.0.0.0 1230:3000 > /dev/null 2>&1 &
+            kubectl $KUBECTL_INSECURE --namespace "$GOAT_NAMESPACE" port-forward $POD_NAME --address 0.0.0.0 1230:3000 > /dev/null 2>&1 &
             break
         else
             echo "Pod $POD_NAME is running but not all containers are ready."
@@ -64,13 +66,13 @@ while true; do
 done
 
 # Exposing DIND (docker-in-docker) exploitation Scenario
-export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace default -l "app=health-check" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace "$GOAT_NAMESPACE" -l "app=health-check" -o jsonpath="{.items[0].metadata.name}")
 while true; do
-    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.phase}')
     if [ "$POD_STATUS" == "Running" ]; then
-        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.containerStatuses[*].ready}')
+        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.containerStatuses[*].ready}')
         if [[ "$READY" == *"true"* ]]; then
-            kubectl $KUBECTL_INSECURE port-forward $POD_NAME --address 0.0.0.0 1231:80 > /dev/null 2>&1 &
+            kubectl $KUBECTL_INSECURE --namespace "$GOAT_NAMESPACE" port-forward $POD_NAME --address 0.0.0.0 1231:80 > /dev/null 2>&1 &
             break
         else
             echo "Pod $POD_NAME is running but not all containers are ready."
@@ -83,13 +85,13 @@ while true; do
 done
 
 # Exposing SSRF in K8S world Scenario
-export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace default -l "app=internal-proxy" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace "$GOAT_NAMESPACE" -l "app=internal-proxy" -o jsonpath="{.items[0].metadata.name}")
 while true; do
-    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.phase}')
     if [ "$POD_STATUS" == "Running" ]; then
-        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.containerStatuses[*].ready}')
+        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.containerStatuses[*].ready}')
         if [[ "$READY" == *"true"* ]]; then
-            kubectl $KUBECTL_INSECURE port-forward $POD_NAME --address 0.0.0.0 1232:3000 > /dev/null 2>&1 &
+            kubectl $KUBECTL_INSECURE --namespace "$GOAT_NAMESPACE" port-forward $POD_NAME --address 0.0.0.0 1232:3000 > /dev/null 2>&1 &
             break
         else
             echo "Pod $POD_NAME is running but not all containers are ready."
@@ -102,13 +104,13 @@ while true; do
 done
 
 # Exposing Container escape to access host system Scenario
-export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace default -l "app=system-monitor" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace "$GOAT_NAMESPACE" -l "app=system-monitor" -o jsonpath="{.items[0].metadata.name}")
 while true; do
-    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.phase}')
     if [ "$POD_STATUS" == "Running" ]; then
-        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.containerStatuses[*].ready}')
+        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.containerStatuses[*].ready}')
         if [[ "$READY" == *"true"* ]]; then
-            kubectl $KUBECTL_INSECURE port-forward $POD_NAME --address 0.0.0.0 1233:8080 > /dev/null 2>&1 &
+            kubectl $KUBECTL_INSECURE --namespace "$GOAT_NAMESPACE" port-forward $POD_NAME --address 0.0.0.0 1233:8080 > /dev/null 2>&1 &
             break
         else
             echo "Pod $POD_NAME is running but not all containers are ready."
@@ -121,13 +123,13 @@ while true; do
 done
 
 # Exposing Kubernetes Goat Home
-export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace default -l "app=kubernetes-goat-home" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace "$GOAT_NAMESPACE" -l "app=kubernetes-goat-home" -o jsonpath="{.items[0].metadata.name}")
 while true; do
-    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.phase}')
     if [ "$POD_STATUS" == "Running" ]; then
-        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.containerStatuses[*].ready}')
+        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.containerStatuses[*].ready}')
         if [[ "$READY" == *"true"* ]]; then
-            kubectl $KUBECTL_INSECURE port-forward $POD_NAME --address 0.0.0.0 1234:80 > /dev/null 2>&1 &
+            kubectl $KUBECTL_INSECURE --namespace "$GOAT_NAMESPACE" port-forward $POD_NAME --address 0.0.0.0 1234:80 > /dev/null 2>&1 &
             break
         else
             echo "Pod $POD_NAME is running but not all containers are ready."
@@ -140,13 +142,13 @@ while true; do
 done
 
 # Exposing Attacking private registry Scenario
-export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace default -l "app=poor-registry" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl $KUBECTL_INSECURE get pods --namespace "$GOAT_NAMESPACE" -l "app=poor-registry" -o jsonpath="{.items[0].metadata.name}")
 while true; do
-    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+    POD_STATUS=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.phase}')
     if [ "$POD_STATUS" == "Running" ]; then
-        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" -o jsonpath='{.status.containerStatuses[*].ready}')
+        READY=$(kubectl $KUBECTL_INSECURE get pod "$POD_NAME" --namespace "$GOAT_NAMESPACE" -o jsonpath='{.status.containerStatuses[*].ready}')
         if [[ "$READY" == *"true"* ]]; then
-            kubectl $KUBECTL_INSECURE port-forward $POD_NAME --address 0.0.0.0 1235:5000 > /dev/null 2>&1 &
+            kubectl $KUBECTL_INSECURE --namespace "$GOAT_NAMESPACE" port-forward $POD_NAME --address 0.0.0.0 1235:5000 > /dev/null 2>&1 &
             break
         else
             echo "Pod $POD_NAME is running but not all containers are ready."
