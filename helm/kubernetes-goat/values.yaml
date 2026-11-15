@@ -1,0 +1,24 @@
+# Kubernetes Goat — INTENTIONALLY VULNERABLE, converted as-is from upstream.
+#
+# Every template under templates/ is the unmodified upstream manifest from
+# scenarios/<name>/, wrapped only in an enable toggle. Install into the
+# "default" namespace (as upstream's setup-kubernetes-goat.sh does).
+
+insecureRbac:       { enabled: true }   # scenarios/insecure-rbac/setup.yaml
+batchCheck:         { enabled: true }   # scenarios/batch-check/job.yaml
+buildCode:          { enabled: true }   # scenarios/build-code/deployment.yaml
+cacheStore:         { enabled: true }   # scenarios/cache-store/deployment.yaml
+healthCheck:        { enabled: true }   # scenarios/health-check/deployment.yaml
+hungerCheck:        { enabled: true }   # scenarios/hunger-check/deployment.yaml
+internalProxy:      { enabled: true }   # scenarios/internal-proxy/deployment.yaml
+kubernetesGoatHome: { enabled: true }   # scenarios/kubernetes-goat-home/deployment.yaml
+poorRegistry:       { enabled: true }   # scenarios/poor-registry/deployment.yaml
+systemMonitor:      { enabled: true }   # scenarios/system-monitor/deployment.yaml
+hiddenInLayers:     { enabled: true }   # scenarios/hidden-in-layers/deployment.yaml
+
+# Upstream chart scenarios/metadata-db (charts/metadata-db). Upstream installs it
+# as release "metadata-db", which names its Deployment/Service "metadata-db";
+# fullnameOverride keeps that name inside this umbrella release.
+metadata-db:
+  enabled: true
+  fullnameOverride: metadata-db

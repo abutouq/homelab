@@ -1,0 +1,16 @@
+apiVersion: v2
+name: kubernetes-goat
+description: >-
+  Kubernetes Goat (https://github.com/madhuakula/kubernetes-goat) packaged as a
+  single Helm chart. INTENTIONALLY VULNERABLE — for security training only.
+type: application
+version: 0.1.0
+appVersion: "2.3.0"
+home: https://madhuakula.com/kubernetes-goat
+sources:
+  - https://github.com/madhuakula/kubernetes-goat
+dependencies:
+  # Upstream's own chart (scenarios/metadata-db), vendored unchanged in charts/
+  - name: metadata-db
+    version: 0.1.0
+    condition: metadata-db.enabled

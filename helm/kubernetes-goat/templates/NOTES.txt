@@ -1,0 +1,3 @@
+Successfully deployed Kubernetes Goat. Have fun learning Kubernetes Security!
+Ensure pods are in running status before running access-kubernetes-goat.sh script
+Now run the bash helm/kubernetes-goat/access-kubernetes-goat.sh to access the Kubernetes Goat environment.

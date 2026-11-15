@@ -1,0 +1,20 @@
+{{- if .Values.hiddenInLayers.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hidden-in-layers
+spec:
+  template:
+    metadata:
+      name: hidden-in-layers
+    spec:
+      containers:
+      - name: hidden-in-layers
+        image: madhuakula/k8s-goat-hidden-in-layers
+        # command:
+        #  - "bin/sh"
+        #  - "-c"
+        #  - "htop"
+      restartPolicy: Never
+
+{{- end }}

@@ -1,0 +1,21 @@
+# ArgoCD Application: kubernetes-goat
+#
+# INTENTIONALLY VULNERABLE security-training lab (helm/kubernetes-goat),
+# converted as-is from upstream. Deploys into "default" like upstream does.
+# Pushing this file makes the app-of-apps create the Application, but it has
+# no automated sync, so nothing is deployed until you run
+# `argocd app sync kubernetes-goat`. Delete this file to remove it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubernetes-goat
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abutouq/homelab.git
+    targetRevision: main
+    path: helm/kubernetes-goat
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
