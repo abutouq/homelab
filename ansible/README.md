@@ -15,7 +15,12 @@ Run in order, after `terraform apply` (see [../terraform/README.md](../terraform
 1. `k8s_node_setup.yml` — base node setup: kernel modules, swap, sysctl, containerd, kubeadm/kubelet/kubectl install
 2. `bootstrap_new_cluster.yml` — kube-vip VIP + `kubeadm init`/`join`, writes `~/.kube/config-new-cluster` (used by `terraform/k8s-addons/`)
 
+## Proxmox hosts
+The physical hosts can't be rebuilt from Terraform, so they're patched here:
+- `proxmox_kernel_update.yml` — installs `kernel_version` and reboots hosts one at a time, waiting for quorum, the host's VMs and its Kubernetes nodes before moving on: `ansible-playbook -i proxmox-hosts.ini proxmox_kernel_update.yml`
+
 ## Inventory & configuration
 - `proxmox-k8s-cluster-hosts.ini` — `control_plane` / `workers` groups (plus `new` for nodes pending setup)
+- `proxmox-hosts.ini` — the 4 Proxmox hosts (`proxmox` group), in rolling-update order
 - `ansible.cfg` — sets the default inventory path for this directory
 - `group_vars/all.yml` — cluster-wide settings shared by playbooks (e.g. `kubernetes_version`)
