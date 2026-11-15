@@ -6,22 +6,17 @@ stack overview, see [README.md](README.md).
 
 ## Cluster Bootstrap (Execution Order)
 
-⚠️ Run in this order on a fresh node — each step depends on the previous one.
-Commands run from the repo root using `ansible/hosts.ini`.
+⚠️ Run in this order — each step depends on the previous one.
+Commands run from the repo root.
 
 | # | Step | Command |
 |---|---|---|
-| 1 | Kubernetes node base setup (kernel modules, sysctl, containerd, kubeadm/kubelet/kubectl) | `ansible-playbook -i ansible/hosts.ini ansible/k8s_node_setup.yml` |
-| 2 | Open-iSCSI install (required for Longhorn) | `ansible-playbook -i ansible/hosts.ini ansible/install_open_iscsi.yml` |
-| 3 | NFSv4 support check | `ansible-playbook -i ansible/hosts.ini ansible/check_nfsv4_support.yml` |
-| 4 | Cryptsetup install (Longhorn encrypted volumes) | `ansible-playbook -i ansible/hosts.ini ansible/install_cryptsetup.yml` |
-| 5 | Install `longhornctl` | `ansible-playbook -i ansible/hosts.ini ansible/install_longhornctl.yml` |
-| 6 | Longhorn preflight checks | `ansible-playbook -i ansible/hosts.ini ansible/check_longhorn_preflight.yml` |
+| 1 | Create the VMs | `terraform -chdir=terraform apply` |
+| 2 | Kubernetes node base setup (kernel modules, sysctl, containerd, kubeadm/kubelet/kubectl) | `ansible-playbook -i ansible/proxmox-k8s-cluster-hosts.ini ansible/k8s_node_setup.yml` |
+| 3 | kube-vip + `kubeadm init`/`join` | `ansible-playbook -i ansible/proxmox-k8s-cluster-hosts.ini ansible/bootstrap_new_cluster.yml` |
+| 4 | Cluster add-ons (Calico, MetalLB, cert-manager, Teleport, monitoring, ...) | `terraform -chdir=terraform/k8s-addons apply` |
 
-See [ansible/README.md](ansible/README.md) for the full playbook inventory,
-including cluster bootstrap (`install_calico.yml`), maintenance
-(`reset_cni_and_iscsi.yml`, `fix_kubelet_dns.yml`), and observability/access
-(`install_node_exporter.yml`, `install_teleport.yml`) playbooks.
+See [terraform/README.md](terraform/README.md) for details.
 
 ## Day-2 Operations
 
@@ -32,8 +27,6 @@ including cluster bootstrap (`install_calico.yml`), maintenance
 | Pod detail / events | `kubectl describe pod <pod>` |
 | Exec into a pod | `kubectl exec -it <pod> -- <cmd>` |
 | Force-delete a stuck pod | `kubectl delete pod <pod> --grace-period=0 --force` |
-| Fix kubelet DNS resolution | `ansible-playbook -i ansible/hosts.ini ansible/fix_kubelet_dns.yml` |
-| Reset CNI state + ensure iSCSI | `ansible-playbook -i ansible/hosts.ini ansible/reset_cni_and_iscsi.yml` |
 
 ## Backup & Restore (Longhorn / StatefulSet data)
 
