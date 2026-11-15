@@ -31,7 +31,7 @@ variable "argocd_apps_path" {
 variable "proxmox_api_url" {
   type        = string
   description = "Proxmox API the CSI controller talks to"
-  default     = "https://192.168.0.2:8006/api2/json"
+  default     = "https://192.168.0.200:8006/api2/json"
 }
 
 variable "proxmox_region" {
