@@ -23,6 +23,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      hostUsers: {{ .Values.hostUsers }}
       # postgres (70) in the alpine image. fsGroup makes a fresh volume's root
       # writable for initdb; the entrypoint resets PGDATA to 0700 on start.
       securityContext:
@@ -38,7 +39,9 @@ spec:
           image: postgres:16-alpine
           imagePullPolicy: IfNotPresent
           securityContext:
+            privileged: false
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
           ports:
@@ -68,6 +71,11 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: init-sql
               mountPath: /docker-entrypoint-initdb.d
+            # Read-only root: the unix socket and lock file, and scratch space.
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}]
@@ -84,6 +92,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
         - name: init-sql
           configMap:
             name: {{ include "ase-market.fullname" . }}-postgres-init

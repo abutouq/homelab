@@ -52,10 +52,17 @@ podSecurityContext:
     type: RuntimeDefault
 
 securityContext:
+  privileged: false
   allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
     - ALL
+
+# Run the pod in its own user namespace: uid 0..65535 inside map to an
+# unprivileged range on the node. Needs volumes that support idmapped mounts
+# (emptyDir and the proxmox-lvm ext4 volumes do; NFS does not).
+hostUsers: false
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
@@ -171,18 +178,18 @@ env:
   # with "No conversation found with session ID" on --resume.
   - name: CLAUDE_CONFIG_DIR
     value: /app/data/claude
-# Additional volumes on the output Deployment definition.
-volumes: []
-  # - name: foo
-  #   secret:
-  #     secretName: mysecret
-  #     optional: false
+# The root filesystem is read-only: scratch space for node and the claude CLI.
+volumes:
+  - name: tmp
+    emptyDir: {}
+  - name: home
+    emptyDir: {}
 
-# Additional volumeMounts on the output Deployment definition.
-volumeMounts: []
-  # - name: foo
-  #   mountPath: "/etc/foo"
-  #   readOnly: true
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: home
+    mountPath: /home/node
 
 nodeSelector: {}
 

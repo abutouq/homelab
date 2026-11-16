@@ -52,10 +52,17 @@ podSecurityContext:
     type: RuntimeDefault
 
 securityContext:
+  privileged: false
   allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
     - ALL
+
+# Run the pod in its own user namespace: uid 0..65535 inside map to an
+# unprivileged range on the node. Needs volumes that support idmapped mounts
+# (emptyDir and the proxmox-lvm ext4 volumes do; NFS does not).
+hostUsers: false
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
@@ -148,8 +155,11 @@ autoscaling:
   # targetMemoryUtilizationPercentage: 80
 
 # Additional volumes on the output Deployment definition.
-# nginx writes its pid, temp files and logs under these root-owned dirs.
+# The root filesystem is read-only: nginx writes its pid, temp files and logs
+# under these dirs, php its sessions and uploads under /tmp.
 volumes:
+  - name: tmp
+    emptyDir: {}
   - name: nginx-run
     emptyDir: {}
   - name: nginx-lib
@@ -159,6 +169,8 @@ volumes:
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts:
+  - name: tmp
+    mountPath: /tmp
   - name: nginx-run
     mountPath: /run
   - name: nginx-lib

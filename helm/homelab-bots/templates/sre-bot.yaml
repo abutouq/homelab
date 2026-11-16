@@ -44,6 +44,8 @@ spec:
       {{- include "homelab-bots.podCommon" . | nindent 6 }}
       # The image has no user of its own; fsGroup gives this uid the state
       # volume (nfs.csi.k8s.io applies fsGroup: fsGroupPolicy File).
+      # No hostUsers: false here: NFS volumes can't be idmapped, so a
+      # user-namespaced pod fails to start with MOUNT_ATTR_IDMAP errors.
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -57,7 +59,9 @@ spec:
           image: {{ include "homelab-bots.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
+            privileged: false
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
           command: ["python3", "/app/sre-bot/sre_daily_bot.py", "listen"]
@@ -76,10 +80,14 @@ spec:
           volumeMounts:
             - name: state
               mountPath: /state
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: state
           persistentVolumeClaim:
             claimName: sre-bot-state-nas
+        - name: tmp
+          emptyDir: {}
 {{- range $mode, $schedule := .Values.sreBot.schedules }}
 ---
 apiVersion: batch/v1
