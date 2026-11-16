@@ -40,16 +40,22 @@ podAnnotations: {}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+# Runs as www-data (33), the user the image's nginx and php-fpm already drop
+# to. Port 80 still binds: containerd 2.x sets ip_unprivileged_port_start=0
+# in every pod. nginx's writable paths are emptyDirs (see volumes below).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 33
+  runAsGroup: 33
+  fsGroup: 33
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
@@ -142,17 +148,23 @@ autoscaling:
   # targetMemoryUtilizationPercentage: 80
 
 # Additional volumes on the output Deployment definition.
-volumes: []
-  # - name: foo
-  #   secret:
-  #     secretName: mysecret
-  #     optional: false
+# nginx writes its pid, temp files and logs under these root-owned dirs.
+volumes:
+  - name: nginx-run
+    emptyDir: {}
+  - name: nginx-lib
+    emptyDir: {}
+  - name: nginx-log
+    emptyDir: {}
 
 # Additional volumeMounts on the output Deployment definition.
-volumeMounts: []
-  # - name: foo
-  #   mountPath: "/etc/foo"
-  #   readOnly: true
+volumeMounts:
+  - name: nginx-run
+    mountPath: /run
+  - name: nginx-lib
+    mountPath: /var/lib/nginx
+  - name: nginx-log
+    mountPath: /var/log/nginx
 
 nodeSelector: {
   node.kubernetes.io/environment: "production"
