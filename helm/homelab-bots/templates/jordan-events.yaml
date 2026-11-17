@@ -91,6 +91,8 @@ spec:
               image: {{ $e.image }}
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-euc"]
+              securityContext:
+                readOnlyRootFilesystem: true
               args:
                 - |
                   npm install -g --prefix /tmp/claude --no-audit --no-fund --loglevel=error "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
@@ -99,6 +101,12 @@ spec:
               env:
                 - name: TZ
                   value: {{ .Values.timeZone }}
+                # Read-only root: HOME (claude's config, chromium's profile) and
+                # everything else writable lives on the /tmp emptyDir.
+                - name: HOME
+                  value: /tmp/home
+                - name: CLAUDE_CONFIG_DIR
+                  value: /tmp/claude-config
                 - name: DATA_DIR
                   value: /data
                 - name: LOOKAHEAD_DAYS

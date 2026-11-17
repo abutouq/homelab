@@ -30,11 +30,20 @@ spec:
           nodeSelector:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          # Read-only root filesystem: php's temp dir.
+          volumes:
+            - name: tmp
+              emptyDir: {}
           containers:
             - name: live-scraper
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: ["php", "/var/www/html/scrape_live_prices.php"]
+              securityContext:
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
               env:
                 {{- if .Values.postgresql.enabled }}
                 - name: DB_HOST

@@ -51,7 +51,15 @@ spec:
               image: {{ include "homelab-bots.image" $ }}
               imagePullPolicy: {{ $.Values.image.pullPolicy }}
               command: ["/app/infra-briefs/{{ $job.script }}"]
+              securityContext:
+                readOnlyRootFilesystem: true
               env:
+                # Read-only root: claude keeps its config and session files
+                # under /tmp (the binary itself stays in the image's /root).
+                - name: HOME
+                  value: /tmp/home
+                - name: CLAUDE_CONFIG_DIR
+                  value: /tmp/claude
                 - name: TZ
                   value: {{ $.Values.timeZone }}
                 - name: OUTPUT_DIR
@@ -64,9 +72,13 @@ spec:
               volumeMounts:
                 - name: data
                   mountPath: /data
+                - name: tmp
+                  mountPath: /tmp
           volumes:
             - name: data
               persistentVolumeClaim:
                 claimName: infra-brief-nas
+            - name: tmp
+              emptyDir: {}
 {{- end }}
 {{- end }}

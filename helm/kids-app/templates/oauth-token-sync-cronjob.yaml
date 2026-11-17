@@ -70,7 +70,11 @@ spec:
           initContainers:
             - name: fetch-token
               image: amazon/aws-cli:2.17.62
+              securityContext:
+                readOnlyRootFilesystem: true
               env:
+                - name: HOME
+                  value: /tmp
                 - name: AWS_ACCESS_KEY_ID
                   value: "test"
                 - name: AWS_SECRET_ACCESS_KEY
@@ -85,9 +89,16 @@ spec:
               volumeMounts:
                 - name: shared
                   mountPath: /shared
+                - name: tmp
+                  mountPath: /tmp
           containers:
             - name: sync-secret
               image: alpine/k8s:1.30.0
+              securityContext:
+                readOnlyRootFilesystem: true
+              env:
+                - name: HOME
+                  value: /tmp
               command: ["sh", "-c"]
               args:
                 - |
@@ -107,6 +118,8 @@ spec:
               volumeMounts:
                 - name: shared
                   mountPath: /shared
+                - name: tmp
+                  mountPath: /tmp
               resources:
                 requests:
                   cpu: 25m
@@ -116,5 +129,8 @@ spec:
                   memory: 64Mi
           volumes:
             - name: shared
+              emptyDir: {}
+            # Read-only root filesystem: aws/kubectl caches (HOME=/tmp).
+            - name: tmp
               emptyDir: {}
 {{- end }}

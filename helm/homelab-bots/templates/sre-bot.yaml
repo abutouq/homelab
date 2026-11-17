@@ -122,6 +122,8 @@ spec:
               image: {{ include "homelab-bots.image" $ }}
               imagePullPolicy: {{ $.Values.image.pullPolicy }}
               command: ["python3", "/app/sre-bot/sre_daily_bot.py", {{ $mode | quote }}]
+              securityContext:
+                readOnlyRootFilesystem: true
               env:
                 - name: TZ
                   value: {{ $.Values.timeZone }}
@@ -135,9 +137,13 @@ spec:
               volumeMounts:
                 - name: state
                   mountPath: /state
+                - name: tmp
+                  mountPath: /tmp
           volumes:
             - name: state
               persistentVolumeClaim:
                 claimName: sre-bot-state-nas
+            - name: tmp
+              emptyDir: {}
 {{- end }}
 {{- end }}

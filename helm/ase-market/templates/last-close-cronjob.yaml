@@ -37,11 +37,20 @@ spec:
           nodeSelector:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          # Read-only root filesystem: php's temp dir.
+          volumes:
+            - name: tmp
+              emptyDir: {}
           containers:
             - name: last-close
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: ["php", "/var/www/html/update_last_close_prices.php"]
+              securityContext:
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
               {{- if .Values.postgresql.enabled }}
               env:
                 - name: DB_HOST

@@ -185,6 +185,8 @@ spec:
             # Code is fetched fresh at a pinned commit; personal data stays on the volume.
             - name: fetch
               image: {{ $c.gitImage }}
+              securityContext:
+                readOnlyRootFilesystem: true
               command: ["/bin/sh", "-euc"]
               args:
                 - |
@@ -205,7 +207,15 @@ spec:
               imagePullPolicy: IfNotPresent
               workingDir: /app
               command: ["/bin/bash", "/config/run.sh"]
+              securityContext:
+                readOnlyRootFilesystem: true
               env:
+                # Read-only root: HOME (claude's config, chromium's profile) and
+                # everything else writable lives on the /tmp emptyDir.
+                - name: HOME
+                  value: /tmp/home
+                - name: CLAUDE_CONFIG_DIR
+                  value: /tmp/claude-config
                 - name: TZ
                   value: {{ .Values.timeZone }}
                 - name: CAREER_OPS_DATA_DIR

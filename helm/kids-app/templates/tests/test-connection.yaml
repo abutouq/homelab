@@ -11,5 +11,7 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "kids-app.fullname" . }}:{{ .Values.service.port }}']
+      securityContext:
+        readOnlyRootFilesystem: true
+      args: ['-q', '-O', '/dev/null', '{{ include "kids-app.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never
