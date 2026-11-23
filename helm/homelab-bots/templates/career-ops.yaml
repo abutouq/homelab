@@ -82,6 +82,14 @@ data:
     echo "== scan"
     # Exit 2 means every board failed; still score what is already queued.
     node scan.mjs $SCAN_ARGS || echo "scan exited $?, continuing with the existing inbox"
+    if [ -n "$FULL_SCAN_ATS" ]; then
+      echo "== full scan ($FULL_SCAN_ATS)"
+      # Every company on these ATSs, not just tracked ones; same filters.
+      # Workable's feed is cached in data/cache (~350 MB) and re-downloaded
+      # only when it changes.
+      node scan-ats-full.mjs --ats "$FULL_SCAN_ATS" --since "$FULL_SCAN_SINCE" \
+        || echo "full scan exited $?, continuing"
+    fi
 
     echo "== match"
     # The runner keeps its queue and state beside the script, which is an
@@ -222,6 +230,10 @@ spec:
                   value: /data
                 - name: SCAN_ARGS
                   value: {{ join " " $c.scanArgs | quote }}
+                - name: FULL_SCAN_ATS
+                  value: {{ join "," $c.fullScan.ats | quote }}
+                - name: FULL_SCAN_SINCE
+                  value: {{ $c.fullScan.sinceDays | quote }}
                 - name: MAX_EVALUATIONS
                   value: {{ $c.match.maxPerRun | quote }}
                 - name: PARALLEL

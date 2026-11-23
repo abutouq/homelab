@@ -88,6 +88,16 @@ careerOps:
     property: CLAUDE_CODE_OAUTH_TOKEN
   # Add "--verify" to drop expired postings (launches Chromium per posting).
   scanArgs: []
+  # Also sweep every company on these ATSs (scan-ats-full.mjs), not just the
+  # tracked ones. workable reads Workable's whole public feed (~5,300 companies,
+  # ~1 min). Others: greenhouse, lever, ashby, workday, icims, bamboohr,
+  # paylocity, join. [] turns it off.
+  # Workable tags most remote roles with one country ("Cyprus · Remote"), so
+  # expect country-locked postings that the CV match then scores down.
+  fullScan:
+    ats: [workable]
+    # Postings published in the last N days; runs are daily, overlap is deduped.
+    sinceDays: 2
   match:
     # Each evaluation is one `claude -p` session on the subscription; the
     # rest of the queue waits for the next day.
