@@ -101,6 +101,8 @@ spec:
               env:
                 - name: TZ
                   value: {{ .Values.timeZone }}
+                - name: TELEGRAM_API_BASE
+                  value: {{ $.Values.telegram.apiBase | quote }}
                 # Read-only root: HOME (claude's config, chromium's profile) and
                 # everything else writable lives on the /tmp emptyDir.
                 - name: HOME

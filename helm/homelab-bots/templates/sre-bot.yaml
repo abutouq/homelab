@@ -68,6 +68,8 @@ spec:
           env:
             - name: TZ
               value: {{ .Values.timeZone }}
+            - name: TELEGRAM_API_BASE
+              value: {{ $.Values.telegram.apiBase | quote }}
             - name: STATE_DIR
               value: /state
             - name: PYTHONUNBUFFERED
@@ -127,6 +129,8 @@ spec:
               env:
                 - name: TZ
                   value: {{ $.Values.timeZone }}
+                - name: TELEGRAM_API_BASE
+                  value: {{ $.Values.telegram.apiBase | quote }}
                 - name: STATE_DIR
                   value: /state
               envFrom:

@@ -12,6 +12,12 @@ timeZone: Asia/Amman
 # Secrets come from Vault through External Secrets (ClusterSecretStore
 # "vault", set up by terraform/k8s-addons). Rotate with `vault kv put`, then
 # restart the listener (CronJobs pick it up on their next run).
+# Telegram Bot API base for every bot. api.telegram.org is blocked in Jordan,
+# so they go through the Cloudflare Worker relay in terraform/telegram-relay.tf.
+# Set back to https://api.telegram.org if the block is lifted.
+telegram:
+  apiBase: https://notify-relay.homebytes.space
+
 externalSecrets:
   storeName: vault
   refreshInterval: 15m

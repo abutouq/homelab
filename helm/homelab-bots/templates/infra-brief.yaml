@@ -62,6 +62,8 @@ spec:
                   value: /tmp/claude
                 - name: TZ
                   value: {{ $.Values.timeZone }}
+                - name: TELEGRAM_API_BASE
+                  value: {{ $.Values.telegram.apiBase | quote }}
                 - name: OUTPUT_DIR
                   value: /data
               envFrom:

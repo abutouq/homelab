@@ -129,7 +129,7 @@ for (const block of parts.join('\n\n———\n\n').split('\n\n')) {
 }
 for (const text of chunks) {
   if (process.env.DRY_RUN) { console.log(`--- message ---\n${text}`); continue; }
-  const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+  const res = await fetch(`${process.env.TELEGRAM_API_BASE || 'https://api.telegram.org'}/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text, parse_mode: 'HTML', disable_web_page_preview: true }),
