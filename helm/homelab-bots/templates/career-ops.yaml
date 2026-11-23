@@ -62,12 +62,26 @@ data:
     const lines = hits.slice(0, 20).map((h) =>
       `<b>${h.score.toFixed(1)}</b> ${esc(h.title || h.url)}\n${esc(h.url)}\n<i>report ${esc(h.num)}</i>`);
     const text = `💼 <b>career-ops: ${hits.length} remote match${hits.length > 1 ? 'es' : ''}</b> (of ${fresh.length} scored)\n\n${lines.join('\n\n')}`;
-    const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: text.slice(0, 4096), parse_mode: 'HTML', disable_web_page_preview: true }),
-    });
-    if (!res.ok) { console.error(`telegram: ${res.status} ${await res.text()}`); process.exit(1); }
+    // Network errors (e.g. ECONNRESET) and 429/5xx are retried; other 4xx are not.
+    for (let attempt = 1; ; attempt++) {
+      let err;
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: text.slice(0, 4096), parse_mode: 'HTML', disable_web_page_preview: true }),
+          signal: AbortSignal.timeout(30000),
+        });
+        if (res.ok) break;
+        err = `${res.status} ${await res.text()}`;
+        if (res.status < 500 && res.status !== 429) { console.error(`telegram: ${err}`); process.exit(1); }
+      } catch (e) {
+        err = `${e.message}${e.cause ? ` (${e.cause.code || e.cause.message})` : ''}`;
+      }
+      if (attempt === 5) { console.error(`telegram: giving up after ${attempt} attempts: ${err}`); process.exit(1); }
+      console.error(`telegram attempt ${attempt} failed: ${err}; retrying`);
+      await new Promise((r) => setTimeout(r, attempt * 10000));
+    }
   run.sh: |
     set -euo pipefail
     D="$CAREER_OPS_DATA_DIR"
@@ -100,7 +114,22 @@ data:
     done
     save() { for f in batch-input.tsv batch-state.tsv; do if [ -f "batch/$f" ]; then cp "batch/$f" "$D/batch/"; fi; done; }
     trap save EXIT
-    touch batch/batch-state.tsv && cp batch/batch-state.tsv /tmp/state.before
+    # Normalize the runner's state before it starts: header first (the runner
+    # writes one only when the file is missing, and an empty file without one
+    # makes its rewrites pile up blank "0" rows), one row per offer, and no
+    # rows left "processing" by a run that was cut short (concurrencyPolicy
+    # Forbid: nothing is running now), so those offers are retried.
+    if [ -s batch/batch-state.tsv ]; then
+      printf 'id\turl\tstatus\tstarted_at\tcompleted_at\treport_num\tscore\terror\tretries\n' > /tmp/state.clean
+      awk -F'\t' '$1 ~ /^[1-9][0-9]*$/ && $2 != "" && $3 != "processing" {
+          if (!($1 in row)) order[++n] = $1; row[$1] = $0 }
+        END { for (i = 1; i <= n; i++) print row[order[i]] }' batch/batch-state.tsv >> /tmp/state.clean
+      echo "state: $(($(wc -l < batch/batch-state.tsv))) lines -> $(($(wc -l < /tmp/state.clean) - 1)) offers"
+      cp /tmp/state.clean batch/batch-state.tsv
+    else
+      rm -f batch/batch-state.tsv
+    fi
+    cp batch/batch-state.tsv /tmp/state.before 2>/dev/null || : > /tmp/state.before
     node sync-batch-input.mjs
     ./batch/batch-runner.sh --mode match --limit "$MAX_EVALUATIONS" --parallel "$PARALLEL" || echo "batch runner exited $?"
     save
