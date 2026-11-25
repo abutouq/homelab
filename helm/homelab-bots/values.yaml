@@ -133,6 +133,17 @@ careerOps:
         job_path: '^/jobs/(?<posting_id>\d+)-(?<slug>[^/]+)/?$'
         fetchDetails: true
         detailLimit: 25
+    # Remote-job aggregator; publishes everything on its Lever board (~3,000
+    # postings, ~46 MB, which the lever provider handles). Most are remote within
+    # one country ("US; Remote"), which the "; Remote" block below drops.
+    - name: Jobgether
+      careers_url: https://jobs.lever.co/jobgether
+      enabled: true
+    # Workday (auto-detected from the URL). All on-site so far (India, Serbia,
+    # Canada, US, EU), so location_filter keeps little; the crawl can hit HTTP 429.
+    - name: Synechron
+      careers_url: https://synechron.wd1.myworkdayjobs.com/SynechronCareers
+      enabled: true
 
   # Deep-merged over upstream templates/portals.example.yml (its tracked
   # companies, job boards and negative keywords stay); arrays replace.
@@ -185,6 +196,9 @@ careerOps:
         - Remote (EU)
         - UK or EU
         - Remote-Friendly (Travel-Required)
+        # "<country or city>; Remote" (Jobgether, Lever, Ashby): remote within that
+        # place only. Worldwide/EMEA/Jordan ones still pass via always_allow.
+        - "; Remote"
       allow:
         - Remote
         - Anywhere
