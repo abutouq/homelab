@@ -2,7 +2,7 @@
 # commit's short sha. Roll out a new build by bumping the tag.
 image:
   repository: registry.gitlab.com/abdulah.abutouq/homelab-bots
-  tag: "3a97825c"
+  tag: "2fc8e0dd"
   pullPolicy: IfNotPresent
 
 # Schedules below are in this zone (the old host ran on Asia/Amman); pods also
