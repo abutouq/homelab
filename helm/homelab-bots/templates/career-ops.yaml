@@ -20,13 +20,32 @@ metadata:
 data:
   portals-overrides.json: {{ $c.portals | toJson | quote }}
   extra-companies.json: {{ $c.extraCompanies | default list | toJson | quote }}
+  extra-title-negative.json: {{ $c.extraTitleNegative | default list | toJson | quote }}
+  {{- with $c.match.seniority }}
+  # Appended to upstream's batch-prompt-match.md, which scores skills only:
+  # a senior CV covers a junior JD, so junior/mid roles scored high.
+  seniority.md: |
+
+    ## Seniority gate (deployment override)
+
+    This one check deliberately uses the candidate's target, overriding "score the CV against the JD only". The candidate has {{ $c.profile.candidate.years_of_experience }} years of experience and wants Senior, Staff, Lead, Principal or Head roles.
+
+    From the JD's title and text, work out the level it hires for and the most years of experience it requires. The role is below target when either:
+    - the title marks it junior or mid-level (Junior, Jr, Mid, Mid-Level, Associate, Entry, Graduate, Trainee, Intern, or level I or II without Senior/Staff/Lead/Principal), or
+    - the highest required experience is under {{ .minYears }} years and nothing in the title or text says senior, staff, lead or principal.
+
+    If it is below target, cap the Match Score at {{ .cap }} however well the skills match, and say so in the summary. A JD that states neither a level nor years is not capped.
+
+    In the report, add this line right under the `**Score:**` line:
+    `**Seniority:** <level the JD hires for> (<required years, or "years not stated">)<", capped" when the cap applied>`
+  {{- end }}
   profile.json: {{ $c.profile | toJson | quote }}
   render-config.mjs: |
     // Objects merge key by key; arrays and scalars from the override replace.
     // extraCompanies are appended to upstream's tracked_companies (same name wins).
     import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
     import { loadYaml } from '/app/lib/yaml-document.mjs';
-    const [base, overrides, profile, data, extra] = process.argv.slice(2);
+    const [base, overrides, profile, data, extra, negExtra] = process.argv.slice(2);
     const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
     const merge = (a, b) => {
       if (!isObj(a) || !isObj(b)) return b;
@@ -36,6 +55,9 @@ data:
     };
     const portals = merge(loadYaml(readFileSync(base, 'utf-8')) || {}, JSON.parse(readFileSync(overrides, 'utf-8')));
     const added = extra ? JSON.parse(readFileSync(extra, 'utf-8')) : [];
+    // extraTitleNegative is appended to upstream's title_filter.negative.
+    const neg = negExtra ? JSON.parse(readFileSync(negExtra, 'utf-8')) : [];
+    portals.title_filter = { ...portals.title_filter, negative: [...new Set([...(portals.title_filter?.negative || []), ...neg])] };
     const names = new Set(added.map((c) => c.name));
     portals.tracked_companies = [...(portals.tracked_companies || []).filter((c) => !names.has(c.name)), ...added];
     writeFileSync(`${data}/portals.yml`, JSON.stringify(portals, null, 2) + '\n');
@@ -95,7 +117,7 @@ data:
     export PATH="/tmp/claude/bin:$PATH"
 
     node /config/render-config.mjs templates/portals.example.yml \
-      /config/portals-overrides.json /config/profile.json "$D" /config/extra-companies.json
+      /config/portals-overrides.json /config/profile.json "$D" /config/extra-companies.json /config/extra-title-negative.json
     cp /secrets/cv.md "$D/cv.md"
 
     echo "== scan"
@@ -136,6 +158,7 @@ data:
     fi
     cp batch/batch-state.tsv /tmp/state.before 2>/dev/null || : > /tmp/state.before
     node sync-batch-input.mjs
+    if [ -f /config/seniority.md ]; then cat /config/seniority.md >> batch/batch-prompt-match.md; fi
     ./batch/batch-runner.sh --mode match --limit "$MAX_EVALUATIONS" --parallel "$PARALLEL" || echo "batch runner exited $?"
     save
 
@@ -217,7 +240,7 @@ spec:
             app.kubernetes.io/name: career-ops
           annotations:
             # Values changes show up as a pod template diff in ArgoCD.
-            checksum/config: {{ toJson (list $c.portals $c.profile $c.extraCompanies) | sha256sum }}
+            checksum/config: {{ toJson (list $c.portals $c.profile $c.extraCompanies $c.extraTitleNegative $c.match) | sha256sum }}
         spec:
           restartPolicy: Never
           # Workers run claude with permissions skipped on untrusted job text:

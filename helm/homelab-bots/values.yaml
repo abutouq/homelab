@@ -111,10 +111,28 @@ careerOps:
     parallel: 2
     # Scores are 1-5; only these reach Telegram. Everything is in reports/.
     minScore: 3.5
+    # Match mode scores skills only, so a junior/mid JD scored as high as a
+    # senior one. This appends a seniority check to its prompt: below-target
+    # roles get at most `cap` (under minScore, so never sent). Remove to turn off.
+    seniority:
+      # Required experience below this (and no senior/lead wording) = below target.
+      minYears: 5
+      cap: 2.5
   storage: 2Gi
   resources:
     requests: {cpu: 200m, memory: 512Mi}
     limits: {memory: 2Gi}
+
+  # Appended to upstream's title_filter.negative (Junior, Intern, ... stay):
+  # titles dropped at scan time, before any Claude session is spent.
+  extraTitleNegative:
+    - word:Jr
+    - word:Mid
+    - Mid-Level
+    - Entry Level
+    - Entry-Level
+    - Graduate
+    - Trainee
 
   # Appended to upstream's tracked_companies (portals.tracked_companies would
   # replace all ~190 of them). Same name as an upstream entry replaces it.
