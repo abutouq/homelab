@@ -19,12 +19,14 @@ metadata:
     {{- include "homelab-bots.labels" . | nindent 4 }}
 data:
   portals-overrides.json: {{ $c.portals | toJson | quote }}
+  extra-companies.json: {{ $c.extraCompanies | default list | toJson | quote }}
   profile.json: {{ $c.profile | toJson | quote }}
   render-config.mjs: |
     // Objects merge key by key; arrays and scalars from the override replace.
+    // extraCompanies are appended to upstream's tracked_companies (same name wins).
     import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
     import { loadYaml } from '/app/lib/yaml-document.mjs';
-    const [base, overrides, profile, data] = process.argv.slice(2);
+    const [base, overrides, profile, data, extra] = process.argv.slice(2);
     const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
     const merge = (a, b) => {
       if (!isObj(a) || !isObj(b)) return b;
@@ -33,6 +35,9 @@ data:
       return out;
     };
     const portals = merge(loadYaml(readFileSync(base, 'utf-8')) || {}, JSON.parse(readFileSync(overrides, 'utf-8')));
+    const added = extra ? JSON.parse(readFileSync(extra, 'utf-8')) : [];
+    const names = new Set(added.map((c) => c.name));
+    portals.tracked_companies = [...(portals.tracked_companies || []).filter((c) => !names.has(c.name)), ...added];
     writeFileSync(`${data}/portals.yml`, JSON.stringify(portals, null, 2) + '\n');
     mkdirSync(`${data}/config`, { recursive: true });
     writeFileSync(`${data}/config/profile.yml`, JSON.stringify(JSON.parse(readFileSync(profile, 'utf-8')), null, 2) + '\n');
@@ -61,7 +66,7 @@ data:
     if (!hits.length) process.exit(0);
     const lines = hits.slice(0, 20).map((h) =>
       `<b>${h.score.toFixed(1)}</b> ${esc(h.title || h.url)}\n${esc(h.url)}\n<i>report ${esc(h.num)}</i>`);
-    const text = `💼 <b>career-ops: ${hits.length} remote match${hits.length > 1 ? 'es' : ''}</b> (of ${fresh.length} scored)\n\n${lines.join('\n\n')}`;
+    const text = `💼 <b>career-ops: ${hits.length} match${hits.length > 1 ? 'es' : ''}</b> (of ${fresh.length} scored)\n\n${lines.join('\n\n')}`;
     // Network errors (e.g. ECONNRESET) and 429/5xx are retried; other 4xx are not.
     for (let attempt = 1; ; attempt++) {
       let err;
@@ -90,7 +95,7 @@ data:
     export PATH="/tmp/claude/bin:$PATH"
 
     node /config/render-config.mjs templates/portals.example.yml \
-      /config/portals-overrides.json /config/profile.json "$D"
+      /config/portals-overrides.json /config/profile.json "$D" /config/extra-companies.json
     cp /secrets/cv.md "$D/cv.md"
 
     echo "== scan"
@@ -212,7 +217,7 @@ spec:
             app.kubernetes.io/name: career-ops
           annotations:
             # Values changes show up as a pod template diff in ArgoCD.
-            checksum/config: {{ toJson (list $c.portals $c.profile) | sha256sum }}
+            checksum/config: {{ toJson (list $c.portals $c.profile $c.extraCompanies) | sha256sum }}
         spec:
           restartPolicy: Never
           # Workers run claude with permissions skipped on untrusted job text:

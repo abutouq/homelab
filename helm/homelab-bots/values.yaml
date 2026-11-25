@@ -116,6 +116,24 @@ careerOps:
     requests: {cpu: 200m, memory: 512Mi}
     limits: {memory: 2Gi}
 
+  # Appended to upstream's tracked_companies (portals.tracked_companies would
+  # replace all ~190 of them). Same name as an upstream entry replaces it.
+  extraCompanies:
+    # Jordanian job board (JBoard, no API). Read through its sitemap, which
+    # robots.txt allows (/rss/ is disallowed); the provider checks robots.txt
+    # before each fetch. Job pages' JSON-LD gives the location (Amman), which
+    # location_filter lets through via "Jordan". Mostly on-site roles.
+    - name: Neptune Careers
+      provider: sitemap
+      careers_url: https://neptune.careers/jobs/
+      enabled: true
+      sitemap:
+        url: https://neptune.careers/sitemap.xml
+        index_filter: jobs
+        job_path: '^/jobs/(?<posting_id>\d+)-(?<slug>[^/]+)/?$'
+        fetchDetails: true
+        detailLimit: 25
+
   # Deep-merged over upstream templates/portals.example.yml (its tracked
   # companies, job boards and negative keywords stay); arrays replace.
   portals:
