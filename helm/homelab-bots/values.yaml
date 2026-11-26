@@ -118,6 +118,20 @@ careerOps:
       # Required experience below this (and no senior/lead wording) = below target.
       minYears: 5
       cap: 2.5
+  # Application bundles: for the best recent matches, one more `claude -p`
+  # session each tailors the CV (upstream modes/pdf.md, with its fact gate) and
+  # writes a cover letter. PDFs land in output/apply/<report>/ on the volume
+  # and go to Telegram with notes (gaps, likely knock-out questions). Never
+  # submits anything. The ledger output/apply/prepared.tsv stops repeats.
+  prepare:
+    # Best first; the rest wait for the next run. 0 turns the step off.
+    maxPerRun: 5
+    # Upstream advises against applying below 4.0 (notify still shows >= 3.5).
+    minScore: 4.0
+    # Only matches scored this recently, so the old backlog is left alone.
+    maxAgeDays: 7
+    # Per bundle; a session past this is killed and retried once next run.
+    timeoutMinutes: 20
   storage: 2Gi
   resources:
     requests: {cpu: 200m, memory: 512Mi}
