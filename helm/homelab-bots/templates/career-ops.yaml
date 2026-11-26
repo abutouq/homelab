@@ -6,9 +6,6 @@
 #   2. match    batch runner in match mode: `claude -p` scores each new posting
 #               against cv.md (1-5) into reports/ and the tracker
 #   3. notify   matches at or above minScore go to Telegram
-#   4. prepare  the best recent matches (prepare.minScore) get a tailored CV
-#               and cover letter, as PDFs on the volume and in Telegram.
-#               Nothing is submitted: applying stays manual.
 #
 # Config comes from values only: each run rebuilds portals.yml (upstream's
 # template + careerOps.portals deep-merged on top) and config/profile.yml.
@@ -70,7 +67,6 @@ data:
     // Sends this run's matches (completed in batch-state.tsv now, not before,
     // score >= MIN_SCORE) to Telegram, best first. Silent when there are none.
     import { readFileSync, readdirSync, existsSync } from 'node:fs';
-    import { sendMessage } from '/config/tg.mjs';
     const [stateBefore, stateAfter, reportsDir] = process.argv.slice(2);
     const minScore = Number(process.env.MIN_SCORE);
     const rows = (f) => existsSync(f)
@@ -93,162 +89,77 @@ data:
     const lines = hits.slice(0, 20).map((h) =>
       `<b>${h.score.toFixed(1)}</b> ${esc(h.title || h.url)}\n${esc(h.url)}\n<i>report ${esc(h.num)}</i>`);
     const text = `💼 <b>career-ops: ${hits.length} match${hits.length > 1 ? 'es' : ''}</b> (of ${fresh.length} scored)\n\n${lines.join('\n\n')}`;
-    try {
-      await sendMessage(text);
-    } catch (e) {
-      console.error(e.message);
-      process.exit(1);
-    }
-  tg.mjs: |
-    // Telegram Bot API calls, shared by notify.mjs and prepare.mjs. Network
-    // errors (e.g. ECONNRESET) and 429/5xx are retried; other 4xx throw at once.
-    import { readFileSync } from 'node:fs';
-    import { basename } from 'node:path';
-    class Fatal extends Error {}
-    async function call(method, body) {
-      const form = body instanceof FormData;
-      for (let attempt = 1; ; attempt++) {
-        let err;
-        try {
-          const res = await fetch(`${process.env.TELEGRAM_API_BASE || 'https://api.telegram.org'}/bot${process.env.TELEGRAM_BOT_TOKEN}/${method}`, {
-            method: 'POST',
-            headers: form ? undefined : { 'content-type': 'application/json' },
-            body: form ? body : JSON.stringify(body),
-            signal: AbortSignal.timeout(60000),
-          });
-          if (res.ok) return;
-          err = `${res.status} ${await res.text()}`;
-          if (res.status < 500 && res.status !== 429) throw new Fatal(`telegram ${method}: ${err}`);
-        } catch (e) {
-          if (e instanceof Fatal) throw e;
-          err = `${e.message}${e.cause ? ` (${e.cause.code || e.cause.message})` : ''}`;
-        }
-        if (attempt === 5) throw new Error(`telegram ${method}: giving up after ${attempt} attempts: ${err}`);
-        console.error(`telegram ${method} attempt ${attempt} failed: ${err}; retrying`);
-        await new Promise((r) => setTimeout(r, attempt * 10000));
-      }
-    }
-    export const sendMessage = (text) => call('sendMessage', {
-      chat_id: process.env.TELEGRAM_CHAT_ID, text: text.slice(0, 4096), parse_mode: 'HTML', disable_web_page_preview: true,
-    });
-    export const sendDocument = (path, name = basename(path)) => {
-      const fd = new FormData();
-      fd.set('chat_id', process.env.TELEGRAM_CHAT_ID);
-      fd.set('document', new Blob([readFileSync(path)], { type: 'application/pdf' }), name);
-      return call('sendDocument', fd);
-    };
-  prepare.mjs: |
-    // Application bundles for the best recent matches. For each one, a single
-    // `claude -p` session tailors the CV (upstream modes/pdf.md, fact gate
-    // included) and writes a cover letter, both rendered to PDF under
-    // output/apply/<report>/. The bundle then goes to Telegram. Nothing is
-    // submitted anywhere: applying stays manual.
-    //
-    // output/apply/prepared.tsv is the ledger (report, status, attempts, time):
-    // a prepared report is never redone, a failed one is retried once.
-    import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, appendFileSync } from 'node:fs';
-    import { spawnSync } from 'node:child_process';
-    import { sendMessage, sendDocument } from '/config/tg.mjs';
-    const [stateFile, D] = process.argv.slice(2);
-    const minScore = Number(process.env.PREP_MIN_SCORE);
-    const max = Number(process.env.PREP_MAX);
-    const maxAgeMs = Number(process.env.PREP_MAX_AGE_DAYS) * 86400000;
-    const timeoutMs = Number(process.env.PREP_TIMEOUT_MINUTES) * 60000;
-    const maxAttempts = 2;
-
-    const root = `${D}/output/apply`;
-    const ledgerFile = `${root}/prepared.tsv`;
-    mkdirSync(root, { recursive: true });
-    const ledger = new Map(); // report -> { status, attempts }; the last row wins
-    if (existsSync(ledgerFile)) {
-      for (const l of readFileSync(ledgerFile, 'utf-8').split('\n').filter(Boolean)) {
-        const [num, status, attempts] = l.split('\t');
-        ledger.set(num, { status, attempts: Number(attempts) || 0 });
-      }
-    }
-    const record = (num, status, attempts) =>
-      appendFileSync(ledgerFile, `${num}\t${status}\t${attempts}\t${new Date().toISOString()}\n`);
-
-    const reports = existsSync(`${D}/reports`) ? readdirSync(`${D}/reports`) : [];
-    const rows = existsSync(stateFile)
-      ? readFileSync(stateFile, 'utf-8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t'))
-      : [];
-    const queue = rows
-      .map(([, url, status, , completedAt, num, score]) => ({ url, status, completedAt, num, score: Number(score) }))
-      .filter((r) => r.status === 'completed' && /^\d+$/.test(r.num) && r.score >= minScore)
-      .filter((r) => Date.now() - Date.parse(r.completedAt) <= maxAgeMs)
-      .filter((r) => {
-        const l = ledger.get(r.num);
-        return !l || (l.status === 'failed' && l.attempts < maxAttempts);
-      })
-      .map((r) => ({ ...r, report: reports.find((n) => n.startsWith(`${r.num}-`) && n.endsWith('.md')) }))
-      .filter((r) => r.report)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, max);
-    console.log(`${queue.length} bundle(s) to prepare (score >= ${minScore}, at most ${max})`);
-
-    // Workers read untrusted job text with permissions skipped: they get no
-    // Telegram credentials, so they cannot message anyone.
-    const env = { ...process.env };
-    for (const k of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_API_BASE']) delete env[k];
-    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    for (const job of queue) {
-      const reportPath = `${D}/reports/${job.report}`;
-      // <num>-<company-slug>-<YYYY-MM-DD>.md
-      const slug = job.report.replace(/\.md$/, '').replace(/^\d+-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-      const heading = (readFileSync(reportPath, 'utf-8').match(/^#\s+(.+)$/m)?.[1] || slug).replace(/^Evaluation:\s*/, '').trim();
-      const out = `${root}/${job.num}`;
-      rmSync(out, { recursive: true, force: true });
-      mkdirSync(out, { recursive: true });
-      const attempts = (ledger.get(job.num)?.attempts || 0) + 1;
-      console.log(`\n== bundle ${job.num} (${job.score}) ${heading}, attempt ${attempts}`);
-
-      const prompt = `Unattended run (modes/_shared.md, "Unattended runs"): nobody can answer. Never ask, never wait, and never submit, send or post anything to any site.
-
-    Prepare an application bundle for one posting:
-    - URL: ${job.url}
-    - Report number: ${job.num}
-    - Evaluation report: ${reportPath} (its "Job Description (archived verbatim)" section is the JD; fetch the URL only if that section is missing)
-    - Output folder: output/apply/${job.num}/ (absolute: ${out})
-
-    Identity: config/profile.yml deliberately holds no name or contact details. Wherever a step reads the candidate's name, email, phone, location, LinkedIn or GitHub from the profile, take them from the header of cv.md instead.
-
-    1. Tailored CV. Follow modes/pdf.md (in your system prompt) with these unattended defaults:
-       - Wherever it says to tell or ask the user (skill gaps, title mismatches, unmatched entries, missing keywords), do not stop: keep cv.md's job titles, never claim a gap skill, and write the item to output/apply/${job.num}/notes.md.
-       - Skip the optional parts: application bundle init, JD similarity and reuse, the hiring-manager audit and the ATS variant.
-       - Write the HTML to output/apply/${job.num}/cv.html and render it with generate-pdf.mjs to output/apply/${job.num}/cv.pdf, passing --report=${job.num}.
-       - The fact gate (verify-cv-facts.mjs) is hard. If it fails, remove the unsupported claim and rebuild. Never edit cv.md, article-digest.md or config/cv-facts.json.
-    2. Cover letter. Write it yourself from cv.md and the report only (no web research), in English, 250-350 words, direct and specific to this JD. Do not run modes/cover.md's interactive steps; read only its "Step 9" for the payload shape and the fact-validator rules. Use: an opening tied to the role and company, profile_intro, 2-3 achievements taken from cv.md (no new numbers), problems_section (what you would tackle first, from the JD), closing. No greeting unless the JD names the hiring manager, language_closing null, user_inputs []. Write the payload to /tmp/cover-${job.num}.json with output_path "output/apply/${job.num}/cover-letter.pdf" and run node generate-cover-letter.mjs --payload /tmp/cover-${job.num}.json. If the validator blocks, remove the claim and rerun. Also save the letter as plain text to output/apply/${job.num}/cover-letter.txt for pasting into forms.
-    3. Notes. Add to output/apply/${job.num}/notes.md, plain text, short bullets: skill gaps, keyword coverage %, every warning from the checks, and likely knock-out questions (work authorization or location for the hiring country, required years, degree, salary) with what the CV says about each.
-
-    Do not change data/applications.md, the tracker, cv.md or any other report. End with exactly one line: "bundle: ok" or "bundle: failed <reason>".`;
-
-      const res = spawnSync('claude', ['-p', '--dangerously-skip-permissions', '--append-system-prompt-file', 'modes/pdf.md', prompt],
-        { stdio: 'inherit', env, timeout: timeoutMs, killSignal: 'SIGKILL' });
-      if (res.error) console.error(`claude: ${res.error.message}`);
-      const cv = `${out}/cv.pdf`;
-      const cover = `${out}/cover-letter.pdf`;
-      if (!existsSync(cv)) {
-        console.error(`bundle ${job.num}: no CV PDF, marked failed`);
-        record(job.num, 'failed', attempts);
-        continue;
-      }
-      record(job.num, 'prepared', attempts);
-
-      const notes = existsSync(`${out}/notes.md`) ? readFileSync(`${out}/notes.md`, 'utf-8').trim() : '';
-      const text = `📝 <b>Application ready</b>: <b>${job.score.toFixed(1)}</b> ${esc(heading)}\n${esc(job.url)}\n<i>report ${job.num}, files in output/apply/${job.num}/</i>`
-        + (existsSync(cover) ? '' : '\n⚠️ no cover letter this time')
-        + (notes ? `\n\n${esc(notes.slice(0, 3200))}` : '');
+    // Network errors (e.g. ECONNRESET) and 429/5xx are retried; other 4xx are not.
+    for (let attempt = 1; ; attempt++) {
+      let err;
       try {
-        await sendMessage(text);
-        await sendDocument(cv, `cv-${slug}.pdf`);
-        if (existsSync(cover)) await sendDocument(cover, `cover-letter-${slug}.pdf`);
+        const res = await fetch(`${process.env.TELEGRAM_API_BASE || 'https://api.telegram.org'}/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: text.slice(0, 4096), parse_mode: 'HTML', disable_web_page_preview: true }),
+          signal: AbortSignal.timeout(30000),
+        });
+        if (res.ok) break;
+        err = `${res.status} ${await res.text()}`;
+        if (res.status < 500 && res.status !== 429) { console.error(`telegram: ${err}`); process.exit(1); }
       } catch (e) {
-        console.error(`bundle ${job.num}: ${e.message}`);
-        process.exitCode = 1;
+        err = `${e.message}${e.cause ? ` (${e.cause.code || e.cause.message})` : ''}`;
       }
+      if (attempt === 5) { console.error(`telegram: giving up after ${attempt} attempts: ${err}`); process.exit(1); }
+      console.error(`telegram attempt ${attempt} failed: ${err}; retrying`);
+      await new Promise((r) => setTimeout(r, attempt * 10000));
     }
+  exceeders-jobs.mjs: |
+    // Exceeders (https://www.exceeders.com/pages/vacancies): an Angular app over
+    // a public JSON API that needs no login, only the organization header the
+    // site itself sends. Prints the active public vacancies in the local-parser
+    // format (upstream providers/local-parser.mjs). The portals entry points at
+    // this file; run.sh copies it into local/, since the parser must be inside
+    // the checkout.
+    const API = 'https://higher.exceeders.com/webapi//api/vacancy/get-all-public';
+    const PAGE = (id) => `https://www.exceeders.com/pages/vacancies/single/${id}`;
+    const pageSize = 100;
+    const body = (pageNumber) => ({
+      pageNumber, pageSize, keyword: '', tab: 'All', sortBy: 'Newest', status: 1, ownerId: null,
+      expression: '', createdDate: '', orgId: '22', vacancyType: '', contractIds: '', workTimeIds: '',
+      countryIds: '', presenceIds: '', publishedExpression: '', publishedOn: '', displayId: '',
+      minimumSalary: '', maximumSalary: '', experience: '', areasOfSpecialty: '', scopeIds: '0',
+      groupId: 'GUN2002011200',
+    });
+    const vacancies = [];
+    for (let page = 1; page <= 10; page++) {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json', organizationid: '22', idenedikey: 'null' },
+        body: JSON.stringify(body(page)),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw new Error(`exceeders: HTTP ${res.status}`);
+      const data = await res.json();
+      const batch = Array.isArray(data.vacancies) ? data.vacancies : [];
+      vacancies.push(...batch);
+      if (batch.length < pageSize || vacancies.length >= Number(data.totalCount || 0)) break;
+    }
+    const jobs = vacancies
+      .filter((v) => v.vacancyId && v.title && v.isPublic !== false && String(v.status || 'Active') === 'Active')
+      .map((v) => {
+        const places = (v.vacancyLocations || []).map((l) => l?.locationName).filter(Boolean);
+        // presence is "Onsite" or "Online"; Online is the site's word for remote.
+        const remote = /online|remote/i.test(v.presence || '');
+        const text = [v.description, v.responsibilities, v.requirements, v.additionalDetails]
+          .filter((t) => typeof t === 'string' && t.trim()).join('\n\n');
+        return {
+          title: v.title.trim(),
+          url: PAGE(v.vacancyId),
+          // Most postings hide the hiring company ("Confidential").
+          company: v.showCompanyTitle && v.company && v.company !== 'Confidential' ? v.company : 'Exceeders',
+          location: [places.join(', '), remote ? 'Remote' : v.presence].filter(Boolean).join(' · '),
+          ...(places.length ? { locations: places } : {}),
+          ...(v.createdOn ? { postedAt: v.createdOn } : {}),
+          ...(text ? { description: text } : {}),
+        };
+      });
+    process.stdout.write(JSON.stringify({ jobs }));
   run.sh: |
     set -euo pipefail
     D="$CAREER_OPS_DATA_DIR"
@@ -259,6 +170,8 @@ data:
     node /config/render-config.mjs templates/portals.example.yml \
       /config/portals-overrides.json /config/profile.json "$D" /config/extra-companies.json /config/extra-title-negative.json
     cp /secrets/cv.md "$D/cv.md"
+    # Local parsers (portals entries with parser:) must live inside the checkout.
+    mkdir -p local && cp /config/exceeders-jobs.mjs local/
 
     echo "== scan"
     # Exit 2 means every board failed; still score what is already queued.
@@ -304,11 +217,6 @@ data:
 
     echo "== notify"
     node /config/notify.mjs /tmp/state.before batch/batch-state.tsv "$D/reports"
-
-    if [ "$PREP_MAX" -gt 0 ]; then
-      echo "== prepare"
-      node /config/prepare.mjs batch/batch-state.tsv "$D"
-    fi
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -378,15 +286,14 @@ spec:
     spec:
       # Scan and batch state are resumable; the next scheduled run is the retry.
       backoffLimit: 0
-      # Scan + up to match.maxPerRun evaluations + prepare.maxPerRun bundles.
-      activeDeadlineSeconds: 14400
+      activeDeadlineSeconds: 10800
       template:
         metadata:
           labels:
             app.kubernetes.io/name: career-ops
           annotations:
             # Values changes show up as a pod template diff in ArgoCD.
-            checksum/config: {{ toJson (list $c.portals $c.profile $c.extraCompanies $c.extraTitleNegative $c.match $c.prepare) | sha256sum }}
+            checksum/config: {{ toJson (list $c.portals $c.profile $c.extraCompanies $c.extraTitleNegative $c.match) | sha256sum }}
         spec:
           restartPolicy: Never
           # Workers run claude with permissions skipped on untrusted job text:
@@ -445,14 +352,6 @@ spec:
                   value: {{ $c.match.parallel | quote }}
                 - name: MIN_SCORE
                   value: {{ $c.match.minScore | quote }}
-                - name: PREP_MAX
-                  value: {{ $c.prepare.maxPerRun | quote }}
-                - name: PREP_MIN_SCORE
-                  value: {{ $c.prepare.minScore | quote }}
-                - name: PREP_MAX_AGE_DAYS
-                  value: {{ $c.prepare.maxAgeDays | quote }}
-                - name: PREP_TIMEOUT_MINUTES
-                  value: {{ $c.prepare.timeoutMinutes | quote }}
                 - name: CLAUDE_CODE_VERSION
                   value: {{ $c.claudeCodeVersion | quote }}
                 # claude refuses --dangerously-skip-permissions as root unless
