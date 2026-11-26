@@ -50,8 +50,8 @@ module "tf_control_plane_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-control-plane-01"
   vm_id               = 9001
-  node_name           = local.nodes.pve.name
-  template_vm_id      = local.nodes.pve.template
+  node_name           = local.nodes.big.name
+  template_vm_id      = local.nodes.big.template
   ip_address          = "192.168.0.3/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))
@@ -86,8 +86,8 @@ module "tf_worker_01" {
   source              = "${path.root}/modules/vm"
   vm_name             = "tf-worker-01"
   vm_id               = 9003
-  node_name           = local.nodes.pve.name
-  template_vm_id      = local.nodes.pve.template
+  node_name      = local.nodes.big.name
+  template_vm_id = local.nodes.big.template
   ip_address          = "192.168.0.10/24"
   gateway             = "192.168.0.1"
   ssh_public_key      = trimspace(file("~/.ssh/id_ed25519.pub"))

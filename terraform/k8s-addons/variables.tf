@@ -44,9 +44,9 @@ variable "proxmox_node_zones" {
   type        = map(string)
   description = "K8s node name -> Proxmox host it runs on (topology.kubernetes.io/zone). Must match node_name in ../main.tf."
   default = {
-    "tf-control-plane-01" = "pve"
+    "tf-control-plane-01" = "big"
     "tf-control-plane-02" = "pve-02"
-    "tf-worker-01"        = "pve"
+    "tf-worker-01"        = "big"
     "tf-worker-02"        = "pve-02"
   }
 }
