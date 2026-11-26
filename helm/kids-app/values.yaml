@@ -62,7 +62,7 @@ securityContext:
 # Run the pod in its own user namespace: uid 0..65535 inside map to an
 # unprivileged range on the node. Needs volumes that support idmapped mounts
 # (emptyDir and the proxmox-lvm ext4 volumes do; NFS does not).
-hostUsers: false
+hostUsers: true
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
